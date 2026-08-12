@@ -26,7 +26,7 @@ function AuthenticatedShell({ children, fullWidth = false }: { children: React.R
   return (
     <div className="app-frame">
       <header className="topbar">
-        <Brand />
+        <Brand href="/home" />
         <nav className="topnav" aria-label="Navegação principal">
           {items.map((item) => {
             const active = pathname === item.href || pathname.startsWith(`${item.href}/`);

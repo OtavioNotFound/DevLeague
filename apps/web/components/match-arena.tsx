@@ -13,7 +13,7 @@ import { CodeEditor } from './code-editor';
 import { VerdictBadge } from './ui';
 
 type SyncState = 'demo' | 'connecting' | 'live' | 'reconnecting' | 'offline';
-interface SnapshotAck { readonly ok: boolean; readonly snapshot?: MatchSnapshot }
+interface SnapshotAck { readonly ok: boolean; readonly snapshot?: unknown }
 
 export function MatchArena({ initialMatch }: { initialMatch: MatchSnapshot }) {
   const [match, setMatch] = useState(initialMatch);
@@ -24,10 +24,12 @@ export function MatchArena({ initialMatch }: { initialMatch: MatchSnapshot }) {
   const router = useRouter();
   const problem: ProblemDetail = { ...demoProblem, versionId: match.problem.versionId, title: match.problem.title, statementMarkdown: match.problem.statementMarkdown, constraintsMarkdown: match.problem.constraintsMarkdown };
 
-  const applySnapshot = useCallback((snapshot: MatchSnapshot) => {
+  const applySnapshot = useCallback((snapshot: unknown): snapshot is MatchSnapshot => {
+    if (!isMatchSnapshot(snapshot)) return false;
     setMatch((current) => snapshot.version >= current.version ? snapshot : current);
     setRemaining(secondsUntil(snapshot.endsAt));
     if (snapshot.status === 'FINISHED' && snapshot.result) router.replace(`/matches/${snapshot.id}/result`);
+    return true;
   }, [router]);
 
   const refresh = useCallback(async () => {
@@ -49,11 +51,15 @@ export function MatchArena({ initialMatch }: { initialMatch: MatchSnapshot }) {
       socket = io(publicConfig.socketUrl, { auth: { token }, transports: ['websocket'], reconnection: true });
       socket.on('connect', () => {
         setSync('live');
-        socket?.emit('match.join', { matchId: match.id, lastEventSeq: initialMatch.version }, (ack: SnapshotAck) => { if (ack.ok && ack.snapshot) applySnapshot(ack.snapshot); });
+        socket?.emit('match.join', { matchId: match.id, lastEventSeq: initialMatch.version }, (ack: SnapshotAck) => {
+          if (!ack.ok || !applySnapshot(ack.snapshot)) void refresh().catch(() => setSync('offline'));
+        });
       });
       socket.on('disconnect', () => setSync('reconnecting'));
       socket.on('connect_error', () => setSync('offline'));
-      socket.on('match.snapshot', applySnapshot);
+      socket.on('match.snapshot', (snapshot: unknown) => {
+        if (!applySnapshot(snapshot)) void refresh().catch(() => setSync('offline'));
+      });
     });
     const fallback = window.setInterval(() => { void refresh().catch(() => setSync('offline')); }, 8_000);
     return () => { active = false; window.clearInterval(fallback); socket?.disconnect(); };
@@ -98,6 +104,17 @@ export function MatchArena({ initialMatch }: { initialMatch: MatchSnapshot }) {
 
 function secondsUntil(timestamp: string): number {
   return Math.max(0, Math.floor((new Date(timestamp).getTime() - Date.now()) / 1_000));
+}
+
+export function isMatchSnapshot(value: unknown): value is MatchSnapshot {
+  if (typeof value !== 'object' || value === null) return false;
+  const snapshot = value as Partial<MatchSnapshot>;
+  return typeof snapshot.id === 'string' &&
+    typeof snapshot.version === 'number' && Number.isInteger(snapshot.version) &&
+    typeof snapshot.endsAt === 'string' && !Number.isNaN(Date.parse(snapshot.endsAt)) &&
+    typeof snapshot.status === 'string' &&
+    typeof snapshot.problem === 'object' && snapshot.problem !== null &&
+    Array.isArray(snapshot.participants) && Array.isArray(snapshot.mySubmissions);
 }
 
 function delay(milliseconds: number): Promise<void> {
