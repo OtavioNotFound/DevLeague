@@ -1,17 +1,22 @@
 'use client';
 
 import type { LanguageKey, PracticeSubmission, ProblemDetail, SubmissionVerdict } from '@devleague/contracts';
+import Editor from '@monaco-editor/react';
+import type * as MonacoApi from 'monaco-editor';
 import { CheckCircle2, ChevronDown, LoaderCircle, Play, Send, TerminalSquare } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { createApi } from '../lib/auth';
+import { canRunInBrowser, runCppLocally, runInBrowser } from '../lib/browser-code-runner';
 import { publicConfig } from '../lib/config';
 
 const languages: readonly { key: LanguageKey; label: string; runtime: string }[] = [
-  { key: 'python', label: 'Python', runtime: '3.13' },
-  { key: 'javascript', label: 'JavaScript', runtime: 'Node 24' },
-  { key: 'java', label: 'Java', runtime: '24' },
-  { key: 'cpp', label: 'C++', runtime: 'GCC 15' }
+  { key: 'python', label: 'Python', runtime: 'Wasm local + judge' },
+  { key: 'javascript', label: 'JavaScript', runtime: 'Node compatível + judge' },
+  { key: 'cpp', label: 'C++', runtime: 'GCC 15 · judge' }
 ];
+
+const storagePrefix = 'devleague:editor:';
+let monacoConfigured = false;
 
 export function CodeEditor({ problem, mode = 'practice', matchId, onMatchSubmitted }: { problem: ProblemDetail; mode?: 'practice' | 'match'; matchId?: string; onMatchSubmitted?: () => Promise<void> | void }) {
   const [language, setLanguage] = useState<LanguageKey>('python');
@@ -19,12 +24,51 @@ export function CodeEditor({ problem, mode = 'practice', matchId, onMatchSubmitt
   const [state, setState] = useState<'idle' | 'running' | 'accepted' | 'rejected' | 'error'>('idle');
   const [consoleText, setConsoleText] = useState('Execute o código para validar o primeiro exemplo.');
   const api = useMemo(() => createApi(), []);
+  const executeRef = useRef<((kind: 'runs' | 'submissions') => Promise<void>) | undefined>(undefined);
   const source = sources[language] ?? '';
+  const visibleLanguages = languages.filter((item) => problem.languages.includes(item.key));
+
+  useEffect(() => {
+    const restored: Partial<Record<LanguageKey, string>> = {};
+    for (const item of visibleLanguages) {
+      const value = window.localStorage.getItem(`${storagePrefix}${problem.versionId}:${item.key}`);
+      if (value !== null) restored[item.key] = value;
+    }
+    if (Object.keys(restored).length > 0) setSources((current) => ({ ...current, ...restored }));
+  }, [problem.versionId]);
 
   async function execute(kind: 'runs' | 'submissions') {
     setState('running');
     setConsoleText(kind === 'runs' ? 'Executando casos de exemplo…' : 'Enviando para avaliação…');
     try {
+      if (mode === 'practice' && kind === 'runs' && canRunInBrowser(language)) {
+        const example = problem.examples[0];
+        if (!example) throw new Error('este problema ainda não possui caso de exemplo');
+        const local = await runInBrowser({ language, source, stdin: example.stdin });
+        if (!local.ok) {
+          setState('rejected');
+          setConsoleText(`EXECUÇÃO LOCAL\n${local.error}`);
+          return;
+        }
+        const accepted = normalizeOutput(local.stdout) === normalizeOutput(example.expectedOutput);
+        setState(accepted ? 'accepted' : 'rejected');
+        setConsoleText(`${accepted ? 'ACEITO' : 'RESPOSTA INCORRETA'} · execução local no navegador\n\nSaída:\n${local.stdout || '(vazia)'}`);
+        return;
+      }
+      if (mode === 'practice' && kind === 'runs' && language === 'cpp') {
+        const example = problem.examples[0];
+        if (!example) throw new Error('este problema ainda não possui caso de exemplo');
+        const local = await runCppLocally({ source, stdin: example.stdin });
+        if (!local.ok) {
+          setState('rejected');
+          setConsoleText(`G++ LOCAL\n${local.error}`);
+          return;
+        }
+        const accepted = normalizeOutput(local.stdout) === normalizeOutput(example.expectedOutput);
+        setState(accepted ? 'accepted' : 'rejected');
+        setConsoleText(`${accepted ? 'ACEITO' : 'RESPOSTA INCORRETA'} · g++ local\n\nSaída:\n${local.stdout || '(vazia)'}`);
+        return;
+      }
       if (mode === 'match' && kind === 'submissions' && matchId) {
         await api.submitMatch({ matchId, language, source });
         setConsoleText('Envio admitido pelo servidor. Aguardando o judge…');
@@ -46,34 +90,173 @@ export function CodeEditor({ problem, mode = 'practice', matchId, onMatchSubmitt
     }
   }
 
+  executeRef.current = execute;
+
+  const beforeMount = (monaco: typeof MonacoApi) => {
+    if (monacoConfigured) return;
+    monacoConfigured = true;
+    monaco.editor.defineTheme('devleague-dark', {
+      base: 'vs-dark',
+      inherit: true,
+      rules: [{ token: 'comment', foreground: '718096' }],
+      colors: { 'editor.background': '#090c10', 'editor.lineHighlightBackground': '#10161f', 'editorCursor.foreground': '#7b92ff' }
+    });
+    for (const languageId of ['python', 'javascript', 'cpp']) {
+      monaco.languages.registerCompletionItemProvider(languageId, {
+        provideCompletionItems: (model: MonacoApi.editor.ITextModel, position: MonacoApi.IPosition) => ({
+          suggestions: completionSuggestions(monaco, languageId, model.getWordUntilPosition(position), position)
+        })
+      });
+    }
+  };
+
+  const onMount = (editor: MonacoApi.editor.IStandaloneCodeEditor, monaco: typeof MonacoApi) => {
+    editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.Enter, () => { void executeRef.current?.('runs'); });
+    editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS, () => {
+      window.localStorage.setItem(`${storagePrefix}${problem.versionId}:${language}`, editor.getValue());
+      setConsoleText('Código salvo localmente.');
+    });
+  };
+
   return (
     <section className={`editor-panel ${mode === 'match' ? 'match-editor' : ''}`}>
       <header className="editor-toolbar">
         <div className="language-picker">
-          <select aria-label="Linguagem" value={language} onChange={(event) => setLanguage(event.target.value as LanguageKey)}>
-            {languages.map((item) => <option value={item.key} key={item.key}>{item.label} · {item.runtime}</option>)}
+          <select aria-label="Linguagem" value={language} onChange={(event) => {
+            setLanguage(event.target.value as LanguageKey);
+            setState('idle');
+            setConsoleText('Execute o código para validar o primeiro exemplo.');
+          }}>
+            {visibleLanguages.map((item) => <option value={item.key} key={item.key}>{item.label} · {item.runtime}</option>)}
           </select>
           <ChevronDown size={15} aria-hidden="true" />
         </div>
         <span className="autosave-state">Salvo localmente</span>
       </header>
-      <div className="editor-surface">
-        <div className="line-numbers" aria-hidden="true">{Array.from({ length: Math.max(source.split('\n').length, 14) }, (_, index) => <span key={index}>{index + 1}</span>)}</div>
-        <textarea aria-label="Editor de código" spellCheck={false} value={source} onChange={(event) => setSources((current) => ({ ...current, [language]: event.target.value }))} onKeyDown={(event) => { if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') { event.preventDefault(); void execute('runs'); } }} />
+      <div className="editor-surface monaco-editor-shell">
+        <Editor
+          height="100%"
+          language={language === 'cpp' ? 'cpp' : language}
+          value={source}
+          theme="devleague-dark"
+          beforeMount={beforeMount}
+          onMount={onMount}
+          onChange={(value) => {
+            const next = value ?? '';
+            setSources((current) => ({ ...current, [language]: next }));
+            window.localStorage.setItem(`${storagePrefix}${problem.versionId}:${language}`, next);
+          }}
+          options={{
+            automaticLayout: true,
+            fontSize: 14,
+            fontFamily: '"Cascadia Code", "JetBrains Mono", Consolas, "Courier New", monospace',
+            fontLigatures: false,
+            lineHeight: 22,
+            cursorStyle: 'line',
+            cursorWidth: 2,
+            minimap: { enabled: false }, scrollBeyondLastLine: false, padding: { top: 16, bottom: 16 },
+            quickSuggestions: { other: 'on', comments: 'off', strings: 'off' },
+            quickSuggestionsDelay: 75,
+            suggestOnTriggerCharacters: true,
+            wordBasedSuggestions: 'currentDocument',
+            suggest: { showKeywords: true, showSnippets: true },
+            tabSize: 2, insertSpaces: true, wordWrap: 'on', bracketPairColorization: { enabled: true },
+            guides: { indentation: true }, fixedOverflowWidgets: true
+          }}
+        />
       </div>
       <div className="console-panel">
         <div className="console-title"><TerminalSquare size={15} /> SAÍDA {state === 'accepted' && <span><CheckCircle2 size={14} /> concluído</span>}</div>
         <pre className={state === 'error' || state === 'rejected' ? 'console-error' : state === 'accepted' ? 'console-success' : ''}>{consoleText}</pre>
       </div>
       <footer className="editor-actions">
-        <span>Ctrl + Enter para executar</span>
+        <span>Ctrl + Enter executar · Ctrl + S salvar · Ctrl + F buscar</span>
         <div>
-          <button className="button secondary" type="button" disabled={state === 'running'} onClick={() => void execute('runs')}><Play size={16} /> Executar</button>
+          <button className="button secondary" type="button" disabled={state === 'running'} onClick={() => void execute('runs')}><Play size={16} /> {mode === 'practice' && (canRunInBrowser(language) || language === 'cpp') ? 'Executar localmente' : 'Executar'}</button>
           <button className="button primary" type="button" disabled={state === 'running'} onClick={() => void execute('submissions')}>{state === 'running' ? <LoaderCircle className="spin" size={17} /> : <Send size={16} />} {mode === 'match' ? 'Enviar solução' : 'Submeter'}</button>
         </div>
       </footer>
     </section>
   );
+}
+
+function normalizeOutput(value: string): string {
+  return value.replace(/\r\n/g, '\n').replace(/\n+$/, '');
+}
+
+function completionSuggestions(
+  monaco: typeof MonacoApi,
+  language: string,
+  word: { readonly word: string; readonly startColumn: number; readonly endColumn: number },
+  position: { readonly lineNumber: number; readonly column: number }
+) {
+  const snippets: Record<string, readonly { label: string; detail: string; insertText: string }[]> = {
+    python: [
+      { label: 'ler inteiros', detail: 'Lê uma linha de inteiros', insertText: 'nums = list(map(int, input().split()))' },
+      { label: 'ler inteiro', detail: 'Lê um número inteiro', insertText: '${1:n} = int(input())' },
+      { label: 'ler texto', detail: 'Lê uma linha de texto', insertText: '${1:texto} = input().strip()' },
+      { label: 'for', detail: 'Laço for', insertText: 'for ${1:item} in ${2:items}:\n\t${0:pass}' },
+      { label: 'for range', detail: 'Laço usando range', insertText: 'for ${1:i} in range(${2:n}):\n\t${0:pass}' },
+      { label: 'while', detail: 'Laço while', insertText: 'while ${1:condicao}:\n\t${0:pass}' },
+      { label: 'if', detail: 'Condição if', insertText: 'if ${1:condicao}:\n\t${0:pass}' },
+      { label: 'if else', detail: 'Condição completa', insertText: 'if ${1:condicao}:\n\t${2:pass}\nelse:\n\t${0:pass}' },
+      { label: 'função', detail: 'Define função', insertText: 'def ${1:nome}(${2:parametro}):\n\t${0:pass}' },
+      { label: 'lista', detail: 'Cria uma lista por compreensão', insertText: '${1:resultado} = [${2:item} for ${2:item} in ${3:items}]' },
+      { label: 'enumerate', detail: 'Percorre índice e valor', insertText: 'for ${1:i}, ${2:valor} in enumerate(${3:items}):\n\t${0:pass}' },
+      { label: 'main', detail: 'Ponto de entrada Python', insertText: 'def main():\n\t${0:pass}\n\nif __name__ == "__main__":\n\tmain()' }
+    ],
+    javascript: [
+      { label: 'ler entrada', detail: 'Lê stdin no formato Node', insertText: 'const input = require("fs").readFileSync(0, "utf8").trim();' },
+      { label: 'ler inteiros', detail: 'Lê todos os inteiros da entrada', insertText: 'const nums = require("fs").readFileSync(0, "utf8").trim().split(/\\s+/).map(Number);' },
+      { label: 'desestruturar entrada', detail: 'Lê inteiros em variáveis', insertText: 'const [${1:a}, ${2:b}] = require("fs").readFileSync(0, "utf8").trim().split(/\\s+/).map(Number);' },
+      { label: 'for', detail: 'Laço for', insertText: 'for (let ${1:i} = 0; ${1:i} < ${2:n}; ${1:i} += 1) {\n\t${0}\n}' },
+      { label: 'for of', detail: 'Percorre os valores de uma coleção', insertText: 'for (const ${1:item} of ${2:items}) {\n\t${0}\n}' },
+      { label: 'while', detail: 'Laço while', insertText: 'while (${1:condicao}) {\n\t${0}\n}' },
+      { label: 'if', detail: 'Condição if', insertText: 'if (${1:condicao}) {\n\t${0}\n}' },
+      { label: 'if else', detail: 'Condição completa', insertText: 'if (${1:condicao}) {\n\t${2}\n} else {\n\t${0}\n}' },
+      { label: 'função', detail: 'Arrow function', insertText: 'const ${1:nome} = (${2:parametro}) => {\n\t${0}\n};' },
+      { label: 'map', detail: 'Transforma os itens de um array', insertText: '${1:items}.map((${2:item}) => ${0:item})' },
+      { label: 'reduce', detail: 'Reduz um array a um valor', insertText: '${1:items}.reduce((${2:acc}, ${3:item}) => ${0:acc + item}, ${4:0})' },
+      { label: 'ordenar números', detail: 'Ordena um array numericamente', insertText: '${1:nums}.sort((a, b) => a - b);' }
+    ],
+    cpp: [
+      { label: 'iostream', detail: 'Base C++ para entrada e saída', insertText: '#include <iostream>\nusing namespace std;\n\nint main() {\n\t${0}\n\treturn 0;\n}' },
+      { label: 'bits', detail: 'Base competitiva com biblioteca padrão', insertText: '#include <bits/stdc++.h>\nusing namespace std;\n\nint main() {\n\tios::sync_with_stdio(false);\n\tcin.tie(nullptr);\n\n\t${0}\n\treturn 0;\n}' },
+      { label: 'for', detail: 'Laço for', insertText: 'for (int ${1:i} = 0; ${1:i} < ${2:n}; ++${1:i}) {\n\t${0}\n}' },
+      { label: 'for range', detail: 'Percorre os valores de um container', insertText: 'for (const auto& ${1:item} : ${2:items}) {\n\t${0}\n}' },
+      { label: 'while', detail: 'Laço while', insertText: 'while (${1:condicao}) {\n\t${0}\n}' },
+      { label: 'if', detail: 'Condição if', insertText: 'if (${1:condicao}) {\n\t${0}\n}' },
+      { label: 'if else', detail: 'Condição completa', insertText: 'if (${1:condicao}) {\n\t${2}\n} else {\n\t${0}\n}' },
+      { label: 'ler inteiro', detail: 'Lê inteiro com cin', insertText: 'long long ${1:n};\ncin >> ${1:n};' },
+      { label: 'vector', detail: 'Cria um vector com tamanho definido', insertText: 'vector<${1:int}> ${2:values}(${3:n});' },
+      { label: 'ler vector', detail: 'Lê todos os valores de um vector', insertText: 'for (auto& ${1:value} : ${2:values}) cin >> ${1:value};' },
+      { label: 'sort', detail: 'Ordena um container', insertText: 'sort(${1:values}.begin(), ${1:values}.end());' }
+    ]
+  };
+  const keywords: Record<string, readonly string[]> = {
+    python: ['and', 'as', 'assert', 'async', 'await', 'break', 'class', 'continue', 'def', 'del', 'elif', 'else', 'except', 'False', 'finally', 'for', 'from', 'global', 'if', 'import', 'in', 'is', 'lambda', 'None', 'nonlocal', 'not', 'or', 'pass', 'raise', 'return', 'True', 'try', 'while', 'with', 'yield'],
+    javascript: ['async', 'await', 'break', 'case', 'catch', 'class', 'const', 'continue', 'debugger', 'default', 'delete', 'do', 'else', 'export', 'extends', 'false', 'finally', 'for', 'function', 'if', 'import', 'in', 'instanceof', 'let', 'new', 'null', 'of', 'return', 'static', 'super', 'switch', 'this', 'throw', 'true', 'try', 'typeof', 'undefined', 'var', 'void', 'while', 'yield'],
+    cpp: ['alignas', 'auto', 'bool', 'break', 'case', 'catch', 'char', 'class', 'const', 'constexpr', 'continue', 'default', 'do', 'double', 'else', 'enum', 'false', 'float', 'for', 'if', 'include', 'inline', 'int', 'long', 'namespace', 'nullptr', 'private', 'protected', 'public', 'return', 'short', 'signed', 'sizeof', 'static', 'struct', 'switch', 'template', 'this', 'throw', 'true', 'try', 'typedef', 'typename', 'unsigned', 'using', 'vector', 'void', 'while']
+  };
+  const range = { startLineNumber: position.lineNumber, endLineNumber: position.lineNumber, startColumn: word.startColumn, endColumn: word.endColumn };
+  const snippetItems = (snippets[language] ?? []).map((item) => ({
+    label: item.label,
+    detail: item.detail,
+    kind: monaco.languages.CompletionItemKind.Snippet,
+    insertText: item.insertText,
+    insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+    sortText: `0-${item.label}`,
+    range
+  }));
+  const keywordItems = (keywords[language] ?? []).map((keyword) => ({
+    label: keyword,
+    detail: `Palavra-chave de ${language === 'cpp' ? 'C++' : language === 'javascript' ? 'JavaScript' : 'Python'}`,
+    kind: monaco.languages.CompletionItemKind.Keyword,
+    insertText: keyword,
+    sortText: `1-${keyword}`,
+    range
+  }));
+  return [...snippetItems, ...keywordItems];
 }
 
 async function pollPracticeSubmission(api: ReturnType<typeof createApi>, id: string, initialDelayMs: number): Promise<PracticeSubmission> {

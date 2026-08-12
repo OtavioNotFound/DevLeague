@@ -4,6 +4,7 @@ import type {
   MatchmakingEntry,
   MeResponse,
   PracticeSubmission,
+  RecentPracticeSubmission,
   ProblemDetail,
   ProblemSummary,
   SubmissionAcceptedResponse
@@ -16,7 +17,8 @@ export class ApiError extends Error {
     readonly status: number,
     readonly code: string,
     readonly requestId?: string,
-    readonly retryable = false
+    readonly retryable = false,
+    readonly details?: Readonly<Record<string, unknown>>
   ) {
     super(code);
     this.name = 'ApiError';
@@ -93,6 +95,11 @@ export class DevLeagueApi {
     return this.request(`/submissions/${id}`);
   }
 
+  async recentPractice(): Promise<readonly RecentPracticeSubmission[]> {
+    if (publicConfig.demoMode) return [];
+    return this.request('/practice/recent');
+  }
+
   async joinQueue(): Promise<MatchmakingEntry> {
     if (publicConfig.demoMode) return { id: crypto.randomUUID(), userId: demoMe.id, rating: demoMe.rating, region: 'br-sa-east', enteredAt: Date.now(), expiresAt: Date.now() + 30_000 };
     return this.request('/matchmaking/entry', { method: 'PUT' });
@@ -105,7 +112,11 @@ export class DevLeagueApi {
 
   async heartbeatQueue(): Promise<MatchmakingEntry | null> {
     if (publicConfig.demoMode) return { id: crypto.randomUUID(), userId: demoMe.id, rating: demoMe.rating, region: 'br-sa-east', enteredAt: Date.now() - 5_000, expiresAt: Date.now() + 30_000 };
-    return this.request('/matchmaking/heartbeat', { method: 'POST' });
+    const entry = await this.request<MatchmakingEntry | undefined>('/matchmaking/heartbeat', {
+      method: 'POST',
+      allowEmpty: true
+    });
+    return entry ?? null;
   }
 
   async submitMatch(input: { matchId: string; language: string; source: string }): Promise<SubmissionAcceptedResponse> {
@@ -124,6 +135,7 @@ export class DevLeagueApi {
     method?: string;
     body?: unknown;
     idempotencyKey?: string;
+    allowEmpty?: boolean;
   } = {}): Promise<T> {
     const token = await this.getToken();
     const response = await fetch(`${publicConfig.apiUrl}${path}`, {
@@ -136,11 +148,32 @@ export class DevLeagueApi {
       },
       ...(options.body ? { body: JSON.stringify(options.body) } : {})
     });
+    const rawBody = response.status === 204 ? '' : await response.text();
+    const payload = parseJson(rawBody);
     if (!response.ok) {
-      const payload = await response.json().catch(() => null) as ApiErrorEnvelope | null;
-      throw new ApiError(response.status, payload?.error.code ?? 'HTTP_ERROR', payload?.error.requestId, payload?.error.retryable ?? false);
+      const error = payload as ApiErrorEnvelope | null;
+      throw new ApiError(
+        response.status,
+        error?.error.code ?? 'HTTP_ERROR',
+        error?.error.requestId,
+        error?.error.retryable ?? false,
+        error?.error.details
+      );
     }
-    if (response.status === 204) return undefined as T;
-    return response.json() as Promise<T>;
+    if (rawBody.length === 0) {
+      if (response.status === 204 || options.allowEmpty) return undefined as T;
+      throw new ApiError(response.status, 'EMPTY_API_RESPONSE');
+    }
+    if (payload === null) throw new ApiError(response.status, 'INVALID_API_RESPONSE');
+    return payload as T;
+  }
+}
+
+function parseJson(value: string): unknown {
+  if (value.length === 0) return null;
+  try {
+    return JSON.parse(value) as unknown;
+  } catch {
+    return null;
   }
 }

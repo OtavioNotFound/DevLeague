@@ -16,7 +16,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run",
     "test:integration": "vitest run src/postgres/competitive-store.integration.test.ts",
-    "migrate": "node dist/migrations/run-cli.js"
+    "migrate": "node --env-file-if-exists=../../.env dist/migrations/run-cli.js"
   },
   "dependencies": {
     "@devleague/application": "workspace:*",

@@ -26,6 +26,10 @@ export interface PracticeSubmissionRecord {
   readonly finishedAt: Date | null;
 }
 
+export interface RecentPracticeSubmissionRecord extends PracticeSubmissionRecord {
+  readonly problemTitle: string;
+}
+
 interface PracticeSubmissionRow extends PracticeSubmissionRecord {
   requestHash: string;
 }
@@ -124,6 +128,22 @@ export class PracticeStore implements ExecutionJobPort {
       where id = ${submissionId} and user_id = ${userId}
     `;
     return submission ?? null;
+  }
+
+  async listRecent(userId: string, limit = 10): Promise<readonly RecentPracticeSubmissionRecord[]> {
+    return this.database<RecentPracticeSubmissionRecord[]>`
+      select ps.id, ps.user_id, ps.problem_version_id, ps.kind,
+             ps.language_key as language, ps.runtime_version, ps.status,
+             ps.verdict, ps.stdout, ps.stderr, ps.compile_output,
+             ps.created_at, ps.finished_at, pv.title as problem_title
+      from devleague.practice_submission ps
+      join devleague.problem_version pv on pv.id = ps.problem_version_id
+      where ps.user_id = ${userId}
+        and ps.status = 'FINISHED'
+        and ps.verdict is not null
+      order by ps.created_at desc
+      limit ${Math.max(1, Math.min(limit, 20))}
+    `;
   }
 
   async recoverStale(staleAfterSeconds: number): Promise<number> {

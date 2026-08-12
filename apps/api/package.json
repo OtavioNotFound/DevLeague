@@ -7,8 +7,8 @@
     "build": "nest build",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run --passWithNoTests",
-    "start": "node dist/main.js",
-    "start:dev": "nest start --watch"
+    "start": "node --env-file-if-exists=../../.env --env-file-if-exists=.env dist/main.js",
+    "start:dev": "node --env-file-if-exists=../../.env --env-file-if-exists=.env node_modules/@nestjs/cli/bin/nest.js start --watch"
   },
   "dependencies": {
     "@devleague/application": "workspace:*",

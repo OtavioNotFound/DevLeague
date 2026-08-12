@@ -57,6 +57,11 @@ export class PracticeController {
     return this.practice.get(principal, submissionId);
   }
 
+  @Get('practice/recent')
+  recent(@CurrentPrincipal() principal: AuthPrincipal) {
+    return this.practice.recent(principal);
+  }
+
   private admit(
     principal: AuthPrincipal,
     kind: PracticeKind,

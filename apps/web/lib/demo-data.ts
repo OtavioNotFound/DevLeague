@@ -5,6 +5,7 @@ export const demoMe: MeResponse = {
   username: 'otaviocode',
   status: 'ACTIVE',
   rating: 1248,
+  stats: { peakRating: 1264, games: 12, wins: 7, losses: 5, draws: 0 },
   activeMatchId: null,
   consents: { termsVersion: 'v0.1-alpha', privacyVersion: 'v0.1-alpha', over18: true },
   eligibility: { eligible: true, reasons: [] }

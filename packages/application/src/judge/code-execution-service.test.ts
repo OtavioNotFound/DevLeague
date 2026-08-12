@@ -69,4 +69,21 @@ describe('CodeExecutionService', () => {
       providerFailure: { category: 'FAKE_RESULT_NOT_CONFIGURED' }
     });
   });
+
+  it('supports an explicit accept-all fallback only for local development', async () => {
+    const adapter = new DeterministicFakeCodeExecutionAdapter(new Map(), 'ACCEPTED');
+    const service = new CodeExecutionService(adapter, {
+      python: '3.13', java: '21', javascript: '24', cpp: '23'
+    });
+
+    await expect(service.execute({
+      correlationId: 'local-development',
+      language: 'python',
+      source: 'print(2)',
+      problem
+    })).resolves.toMatchObject({
+      verdict: 'ACCEPTED',
+      stdout: '2\n'
+    });
+  });
 });

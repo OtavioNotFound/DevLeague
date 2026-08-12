@@ -21,6 +21,13 @@ export interface MeResponse {
   readonly username: string;
   readonly status: 'ACTIVE' | 'SUSPENDED' | 'DELETED';
   readonly rating: number;
+  readonly stats: {
+    readonly peakRating: number;
+    readonly games: number;
+    readonly wins: number;
+    readonly losses: number;
+    readonly draws: number;
+  };
   readonly activeMatchId: string | null;
   readonly consents: {
     readonly termsVersion: string | null;
@@ -75,6 +82,10 @@ export interface PracticeSubmission {
   readonly compileOutput: string | null;
   readonly createdAt: string;
   readonly finishedAt: string | null;
+}
+
+export interface RecentPracticeSubmission extends PracticeSubmission {
+  readonly problemTitle: string;
 }
 
 export interface MatchmakingEntry {

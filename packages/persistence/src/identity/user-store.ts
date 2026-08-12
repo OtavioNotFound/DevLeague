@@ -10,6 +10,11 @@ export interface InternalUser {
   readonly status: UserStatus;
   readonly username: string;
   readonly currentRating: number;
+  readonly peakRating: number;
+  readonly games: number;
+  readonly wins: number;
+  readonly losses: number;
+  readonly draws: number;
   readonly activeMatchId: string | null;
   readonly acceptedTermsVersion: string | null;
   readonly acceptedPrivacyVersion: string | null;
@@ -21,6 +26,11 @@ interface UserRow {
   status: UserStatus;
   username: string;
   currentRating: number;
+  peakRating: number;
+  games: number;
+  wins: number;
+  losses: number;
+  draws: number;
   activeMatchId: string | null;
   acceptedTermsVersion: string | null;
   acceptedPrivacyVersion: string | null;
@@ -39,6 +49,7 @@ export class UserStore {
       return await this.database.begin(async (transaction) => {
         const [existing] = await transaction<UserRow[]>`
           select u.id, u.auth_subject, u.status, p.username, r.current_rating,
+                 r.peak_rating, r.games, r.wins, r.losses, r.draws,
                  ae.match_id as active_match_id,
                  latest_terms.document_version as accepted_terms_version,
                  latest_privacy.document_version as accepted_privacy_version
@@ -79,6 +90,7 @@ export class UserStore {
 
         const [created] = await transaction<UserRow[]>`
           select u.id, u.auth_subject, u.status, p.username, r.current_rating,
+                 r.peak_rating, r.games, r.wins, r.losses, r.draws,
                  ae.match_id as active_match_id,
                  null::text as accepted_terms_version,
                  null::text as accepted_privacy_version
@@ -104,6 +116,7 @@ export class UserStore {
   async findByAuthSubject(authSubject: string): Promise<InternalUser | null> {
     const [user] = await this.database<UserRow[]>`
       select u.id, u.auth_subject, u.status, p.username, r.current_rating,
+             r.peak_rating, r.games, r.wins, r.losses, r.draws,
              ae.match_id as active_match_id,
              latest_terms.document_version as accepted_terms_version,
              latest_privacy.document_version as accepted_privacy_version
@@ -153,6 +166,7 @@ export class UserStore {
 
       const [updated] = await transaction<UserRow[]>`
         select u.id, u.auth_subject, u.status, p.username, r.current_rating,
+               r.peak_rating, r.games, r.wins, r.losses, r.draws,
                ae.match_id as active_match_id,
                latest_terms.document_version as accepted_terms_version,
                latest_privacy.document_version as accepted_privacy_version

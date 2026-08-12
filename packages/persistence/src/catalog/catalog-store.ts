@@ -79,7 +79,7 @@ export class CatalogStore {
       where p.status = 'PUBLISHED'
         and (${input.cursor ?? null}::uuid is null or pv.id > ${input.cursor ?? null}::uuid)
         and (${input.difficulty ?? null}::text is null or pv.difficulty = ${input.difficulty ?? null})
-      group by p.id, pv.id
+      group by p.id, p.slug, pv.id, pv.title, pv.difficulty
       order by pv.id
       limit ${input.limit + 1}
     `;
@@ -109,7 +109,7 @@ export class CatalogStore {
         where p.id = ${input.problemId}
           and p.status = 'PUBLISHED'
           and pv.practice_visible = true
-        group by p.id, pv.id
+        group by p.id, p.slug, pv.id, pv.title, pv.difficulty
         order by pv.version_number desc
         limit 1
       `;

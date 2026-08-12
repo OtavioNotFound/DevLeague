@@ -34,7 +34,8 @@ async function main(): Promise<void> {
 function createExecutionAdapter(): CodeExecutionPort {
   const provider = process.env.JUDGE_PROVIDER;
   if (provider === 'fake' && process.env.NODE_ENV !== 'production') {
-    return new DeterministicFakeCodeExecutionAdapter();
+    const fallback = process.env.FAKE_JUDGE_DEFAULT === 'accepted' ? 'ACCEPTED' : 'SYSTEM_ERROR';
+    return new DeterministicFakeCodeExecutionAdapter(new Map(), fallback);
   }
   throw new Error(
     'No execution provider configured. Only JUDGE_PROVIDER=fake outside production is available.'

@@ -4,6 +4,7 @@ import { ArrowLeft, CheckCircle2, LoaderCircle, Radio, ShieldCheck, Swords, Time
 import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
 import { createApi } from '../lib/auth';
+import { ApiError } from '../lib/api';
 import { demoMatch } from '../lib/demo-data';
 import { publicConfig } from '../lib/config';
 import { useAccount } from './session-gate';
@@ -11,13 +12,18 @@ import { useAccount } from './session-gate';
 export function QueuePanel() {
   const [seconds, setSeconds] = useState(0);
   const [phase, setPhase] = useState<'joining' | 'searching' | 'found' | 'error'>('joining');
+  const [errorCode, setErrorCode] = useState<string | null>(null);
   const [matchId, setMatchId] = useState(demoMatch.id);
   const api = useMemo(() => createApi(), []);
   const account = useAccount();
 
   useEffect(() => {
     let active = true;
-    void api.joinQueue().then(() => { if (active) setPhase('searching'); }).catch(() => { if (active) setPhase('error'); });
+    void api.joinQueue().then(() => { if (active) setPhase('searching'); }).catch((error: unknown) => {
+      if (!active) return;
+      setErrorCode(error instanceof ApiError ? error.code : 'NETWORK_ERROR');
+      setPhase('error');
+    });
     const clock = window.setInterval(() => setSeconds((value) => value + 1), 1_000);
     const found = publicConfig.demoMode ? window.setTimeout(() => { if (active) setPhase('found'); }, 5_500) : undefined;
     const status = !publicConfig.demoMode ? window.setInterval(() => {
@@ -25,7 +31,7 @@ export function QueuePanel() {
         if (active && me.activeMatchId) { setMatchId(me.activeMatchId); setPhase('found'); }
       }).catch(() => undefined);
     }, 2_000) : undefined;
-    const heartbeat = window.setInterval(() => { void api.heartbeatQueue(); }, 15_000);
+    const heartbeat = window.setInterval(() => { void api.heartbeatQueue().catch(() => undefined); }, 15_000);
     return () => { active = false; window.clearInterval(clock); window.clearInterval(heartbeat); if (found) window.clearTimeout(found); if (status) window.clearInterval(status); };
   }, [api]);
 
@@ -48,10 +54,18 @@ export function QueuePanel() {
     <div className="queue-card">
       <div className="radar" aria-hidden="true"><span><Swords size={30} /></span><i /><i /></div>
       <p className="eyebrow">MATCHMAKING PÚBLICO</p><h1>{phase === 'error' ? 'FILA INDISPONÍVEL.' : 'PROCURANDO RIVAL.'}</h1>
-      <p className="queue-lead">{phase === 'error' ? 'Não conseguimos acessar o matchmaking. Tente novamente em alguns instantes.' : 'Buscando alguém próximo do seu rating na região Brasil.'}</p>
+      <p className="queue-lead">{phase === 'error' ? queueErrorMessage(errorCode) : 'Buscando alguém próximo do seu rating na região Brasil.'}</p>
       {phase !== 'error' && <><span className="queue-time">{String(Math.floor(seconds / 60)).padStart(2, '0')}:{String(seconds % 60).padStart(2, '0')}</span><div className="searching-state"><LoaderCircle className="spin" size={16} /> {phase === 'joining' ? 'Entrando na fila…' : 'Expandindo faixa aos poucos'}</div></>}
       <div className="queue-rules"><span><Radio size={17} /><b>Região</b><small>São Paulo</small></span><span><UsersRound size={17} /><b>Rating</b><small>{account.rating} ± 80</small></span><span><TimerReset size={17} /><b>Duração</b><small>10 minutos</small></span><span><ShieldCheck size={17} /><b>Modo</b><small>Ranqueado</small></span></div>
       {phase === 'error' ? <button className="button primary" type="button" onClick={() => window.location.reload()}>Tentar novamente</button> : <button className="button ghost" type="button" onClick={() => void cancel()}><ArrowLeft size={17} /> Cancelar busca</button>}
     </div>
   );
+}
+
+function queueErrorMessage(code: string | null): string {
+  if (code === 'ALPHA_NOT_ELIGIBLE') {
+    return 'Sua sessão ainda não reconheceu a confirmação do e-mail. Saia da conta, entre novamente e tente de novo.';
+  }
+  if (code === 'MATCHMAKING_DISABLED') return 'O matchmaking está temporariamente desativado.';
+  return 'Não conseguimos acessar o matchmaking. Tente novamente em alguns instantes.';
 }

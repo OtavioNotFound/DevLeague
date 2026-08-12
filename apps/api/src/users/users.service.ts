@@ -14,6 +14,13 @@ export interface MeResponse {
   readonly username: string;
   readonly status: InternalUser['status'];
   readonly rating: number;
+  readonly stats: {
+    readonly peakRating: number;
+    readonly games: number;
+    readonly wins: number;
+    readonly losses: number;
+    readonly draws: number;
+  };
   readonly activeMatchId: string | null;
   readonly consents: {
     readonly termsVersion: string | null;
@@ -113,6 +120,13 @@ export function toMeResponse(
     username: user.username,
     status: user.status,
     rating: user.currentRating,
+    stats: {
+      peakRating: user.peakRating,
+      games: user.games,
+      wins: user.wins,
+      losses: user.losses,
+      draws: user.draws
+    },
     activeMatchId: user.activeMatchId,
     consents: {
       termsVersion: user.acceptedTermsVersion,

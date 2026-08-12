@@ -10,7 +10,8 @@ import {
   StoreRuleError,
   type LanguageKey,
   type PracticeKind,
-  type PracticeSubmissionRecord
+  type PracticeSubmissionRecord,
+  type RecentPracticeSubmissionRecord
 } from '@devleague/persistence';
 import type { AuthPrincipal } from '../auth/auth-principal.js';
 import { DatabaseService } from '../database/database.service.js';
@@ -73,6 +74,11 @@ export class PracticeService {
     const submission = await this.store.findOwned(submissionId, me.id);
     if (!submission) throw new NotFoundException({ code: 'SUBMISSION_NOT_FOUND' });
     return toPublicSubmission(submission);
+  }
+
+  async recent(principal: AuthPrincipal): Promise<readonly RecentPracticeSubmissionRecord[]> {
+    const me = await this.users.requireEligible(principal);
+    return this.store.listRecent(me.id, 10);
   }
 
   private get store(): PracticeStore {

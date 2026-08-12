@@ -8,6 +8,11 @@ const activeUser: InternalUser = {
   status: 'ACTIVE',
   username: 'AlphaUser',
   currentRating: 1200,
+  peakRating: 1200,
+  games: 0,
+  wins: 0,
+  losses: 0,
+  draws: 0,
   activeMatchId: null,
   acceptedTermsVersion: 'v0.1-alpha',
   acceptedPrivacyVersion: 'v0.1-alpha'
