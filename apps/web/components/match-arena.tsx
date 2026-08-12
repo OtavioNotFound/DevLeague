@@ -79,7 +79,7 @@ export function MatchArena({ initialMatch }: { initialMatch: MatchSnapshot }) {
   return (
     <div className="arena-page">
       <header className="arena-header">
-        <div className="arena-live"><Radio size={15} /> AO VIVO <span className="tag ranked">{match.type === 'RANKED_PUBLIC' ? 'RANQUEADA' : 'PRIVADA'}</span></div>
+        <div className="arena-live"><Radio size={15} /> AO VIVO <span className="tag ranked">{match.type === 'RANKED_PUBLIC' ? 'RANQUEADA' : match.type === 'UNRANKED_PUBLIC' ? 'UNRANKED' : 'PRIVADA'}</span></div>
         <div className={remaining < 60 ? 'arena-clock danger-text' : 'arena-clock'}>{String(Math.floor(remaining / 60)).padStart(2, '0')}:{String(remaining % 60).padStart(2, '0')}</div>
         <div className="arena-actions"><span>{sync === 'offline' ? <WifiOff size={15} /> : <ShieldCheck size={15} />}{syncLabel}</span><button type="button" onClick={() => setConfirmForfeit(true)}><Flag size={15} /> Desistir</button></div>
       </header>

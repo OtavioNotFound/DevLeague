@@ -1,6 +1,6 @@
 import { MatchRuleError } from './match-errors.js';
 
-export type MatchType = 'RANKED_PUBLIC' | 'PRIVATE_UNRANKED';
+export type MatchType = 'RANKED_PUBLIC' | 'UNRANKED_PUBLIC' | 'PRIVATE_UNRANKED';
 export type MatchStatus =
   | 'COUNTDOWN'
   | 'ACTIVE'

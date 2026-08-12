@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import type {
   MatchmakingEntry,
+  MatchmakingMode,
   MatchmakingPair,
   MatchmakingQueuePort
 } from './matchmaking-port.js';
@@ -11,7 +12,9 @@ export class InMemoryMatchmakingAdapter implements MatchmakingQueuePort {
 
   upsert(entry: MatchmakingEntry): Promise<MatchmakingEntry> {
     const existing = this.entries.get(entry.userId);
-    const stored = existing ? { ...entry, id: existing.id, enteredAt: existing.enteredAt } : entry;
+    const stored = existing && existing.region === entry.region && existing.mode === entry.mode
+      ? { ...entry, id: existing.id, enteredAt: existing.enteredAt }
+      : entry;
     this.entries.set(entry.userId, stored);
     return Promise.resolve(stored);
   }
@@ -37,9 +40,9 @@ export class InMemoryMatchmakingAdapter implements MatchmakingQueuePort {
     return Promise.resolve(updated);
   }
 
-  claimPair(region: string, now: number): Promise<MatchmakingPair | null> {
+  claimPair(region: string, mode: MatchmakingMode, now: number): Promise<MatchmakingPair | null> {
     const candidates = [...this.entries.values()]
-      .filter((entry) => entry.region === region && entry.expiresAt > now)
+      .filter((entry) => entry.region === region && entry.mode === mode && entry.expiresAt > now)
       .sort((left, right) => left.enteredAt - right.enteredAt || left.userId.localeCompare(right.userId));
     for (let firstIndex = 0; firstIndex < candidates.length; firstIndex += 1) {
       const first = candidates[firstIndex];
@@ -50,7 +53,7 @@ export class InMemoryMatchmakingAdapter implements MatchmakingQueuePort {
         this.entries.delete(first.userId);
         this.entries.delete(second.userId);
         const pair: MatchmakingPair = {
-          id: randomUUID(), region, first, second,
+          id: randomUUID(), region, mode, first, second,
           reservationExpiresAt: now + 30_000
         };
         this.reservations.set(pair.id, pair);

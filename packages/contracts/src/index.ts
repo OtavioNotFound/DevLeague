@@ -93,13 +93,14 @@ export interface MatchmakingEntry {
   readonly userId: string;
   readonly rating: number;
   readonly region: string;
+  readonly mode: 'RANKED' | 'UNRANKED';
   readonly enteredAt: number;
   readonly expiresAt: number;
 }
 
 export interface MatchSnapshot {
   readonly id: string;
-  readonly type: 'RANKED_PUBLIC' | 'PRIVATE_UNRANKED';
+  readonly type: 'RANKED_PUBLIC' | 'UNRANKED_PUBLIC' | 'PRIVATE_UNRANKED';
   readonly status: 'COUNTDOWN' | 'ACTIVE' | 'RESOLVING' | 'FINISHED' | 'CANCELLED';
   readonly serverNow: string;
   readonly startsAt: string;

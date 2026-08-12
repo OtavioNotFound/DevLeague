@@ -47,7 +47,7 @@ async function pollResult(api: ReturnType<typeof createApi>, id: string): Promis
 
 function demoResult(id: string, userId: string, outcome?: string): MatchSnapshot {
   const won = outcome !== 'forfeit';
-  return { ...demoMatch, id, status: 'FINISHED', result: { matchId: id, reason: won ? 'ACCEPTED' : 'FORFEIT', winnerUserId: won ? userId : demoMatch.participants[1]?.userId ?? null, winningSubmissionId: won ? 'sub-3' : null, finishedAt: new Date().toISOString(), ratingChanges: [{ userId, before: 1248, delta: won ? 16 : -16, after: won ? 1264 : 1232 }] } };
+  return { ...demoMatch, id, status: 'FINISHED', result: { matchId: id, reason: won ? 'ACCEPTED' : 'FORFEIT', winnerUserId: won ? userId : demoMatch.participants[1]?.userId ?? null, winningSubmissionId: won ? 'sub-3' : null, finishedAt: new Date().toISOString(), ratingChanges: [{ userId, before: 0, delta: won ? 16 : 0, after: won ? 16 : 0 }] } };
 }
 
 function formatDelta(delta: number): string { return delta > 0 ? `+${delta}` : delta === 0 ? '±0' : `−${Math.abs(delta)}`; }

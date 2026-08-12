@@ -7,18 +7,18 @@ describe('matchmaking', () => {
     const queue = new InMemoryMatchmakingAdapter();
     const now = Date.now();
     await queue.upsert({
-      id: 'entry-1', userId: 'user-1', rating: 1200, region: 'br-sa-east',
+      id: 'entry-1', userId: 'user-1', rating: 0, region: 'br-sa-east', mode: 'RANKED',
       enteredAt: now, expiresAt: now + 60_000
     });
     await queue.upsert({
-      id: 'entry-2', userId: 'user-2', rating: 1275, region: 'br-sa-east',
+      id: 'entry-2', userId: 'user-2', rating: 75, region: 'br-sa-east', mode: 'RANKED',
       enteredAt: now, expiresAt: now + 60_000
     });
     const coordinator = new MatchmakingCoordinator(queue, {
-      createRankedMatch: () => Promise.resolve('match-1')
+      createMatch: () => Promise.resolve('match-1')
     });
 
-    await expect(coordinator.runOnce('br-sa-east', now)).resolves.toBe('match-1');
+    await expect(coordinator.runOnce('br-sa-east', 'RANKED', now)).resolves.toBe('match-1');
     await expect(queue.get('user-1')).resolves.toBeNull();
   });
 
@@ -27,15 +27,25 @@ describe('matchmaking', () => {
     const now = Date.now();
     for (const userId of ['user-1', 'user-2']) {
       await queue.upsert({
-        id: `entry-${userId}`, userId, rating: 1200, region: 'br-sa-east',
+        id: `entry-${userId}`, userId, rating: 0, region: 'br-sa-east', mode: 'UNRANKED',
         enteredAt: now, expiresAt: now + 60_000
       });
     }
     const coordinator = new MatchmakingCoordinator(queue, {
-      createRankedMatch: () => Promise.reject(new Error('PostgreSQL unavailable'))
+      createMatch: () => Promise.reject(new Error('PostgreSQL unavailable'))
     });
 
-    await expect(coordinator.runOnce('br-sa-east', now)).rejects.toThrow();
+    await expect(coordinator.runOnce('br-sa-east', 'UNRANKED', now)).rejects.toThrow();
     await expect(queue.get('user-1')).resolves.toMatchObject({ userId: 'user-1' });
+  });
+
+  it('does not pair ranked players with unranked players', async () => {
+    const queue = new InMemoryMatchmakingAdapter();
+    const now = Date.now();
+    await queue.upsert({ id: 'ranked', userId: 'user-1', rating: 0, region: 'br-sa-east', mode: 'RANKED', enteredAt: now, expiresAt: now + 60_000 });
+    await queue.upsert({ id: 'unranked', userId: 'user-2', rating: 0, region: 'br-sa-east', mode: 'UNRANKED', enteredAt: now, expiresAt: now + 60_000 });
+
+    await expect(queue.claimPair('br-sa-east', 'RANKED', now)).resolves.toBeNull();
+    await expect(queue.claimPair('br-sa-east', 'UNRANKED', now)).resolves.toBeNull();
   });
 });

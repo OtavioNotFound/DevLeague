@@ -69,8 +69,11 @@ export default function SignupPage() {
 
       const currentSession = await supabase.auth.getSession();
       if (currentSession.data.session) {
-        await finishProfile(input.username);
-        return;
+        const { error: signOutError } = await supabase.auth.signOut({ scope: 'local' });
+        if (signOutError) {
+          setFeedback({ kind: 'error', text: 'NÃ£o foi possÃ­vel encerrar a conta atual. Saia da conta e tente novamente.' });
+          return;
+        }
       }
 
       const { data, error } = await supabase.auth.signUp({
@@ -111,7 +114,7 @@ export default function SignupPage() {
       <section className="auth-panel">
         <p className="eyebrow">ALPHA FECHADA · 18+</p>
         <h1>CRIE SUA CONTA.</h1>
-        <p>Seu primeiro rating começa em 1200. O resto você conquista resolvendo.</p>
+        <p>Seu rating começa em 0. Vença partidas ranqueadas para conquistar pontos.</p>
         <form className="form-grid" noValidate onSubmit={(event) => void submit(event)}>
           <div className="field">
             <label htmlFor="email">E-mail</label>

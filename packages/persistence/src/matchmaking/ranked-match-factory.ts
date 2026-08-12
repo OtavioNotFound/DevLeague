@@ -11,7 +11,7 @@ export class RankedMatchFactory implements MatchCreationPort {
     this.matches = new CompetitiveStore(database);
   }
 
-  async createRankedMatch(pair: MatchmakingPair): Promise<string> {
+  async createMatch(pair: MatchmakingPair): Promise<string> {
     const [problem] = await this.database<{ versionId: string }[]>`
       select pv.id as version_id
       from devleague.problem p
@@ -35,7 +35,7 @@ export class RankedMatchFactory implements MatchCreationPort {
     return this.matches.createMatch({
       id: randomUUID(),
       originKey: `matchmaking:${pair.id}`,
-      type: process.env.ALPHA_BROWSER_MATCHES_UNRANKED === 'true' ? 'PRIVATE_UNRANKED' : 'RANKED_PUBLIC',
+      type: pair.mode === 'RANKED' ? 'RANKED_PUBLIC' : 'UNRANKED_PUBLIC',
       problemVersionId: problem.versionId,
       participantUserIds: [pair.first.userId, pair.second.userId],
       startsAt: new Date(Date.now() + 3_000)

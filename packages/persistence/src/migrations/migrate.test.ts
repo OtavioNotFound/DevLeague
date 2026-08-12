@@ -87,3 +87,15 @@ describe('matchmaking origin migration', () => {
     expect(sql).toContain('match_origin_key_unique');
   });
 });
+
+describe('zero-based ranked rating migration', () => {
+  it('starts the alpha ladder at zero and resets existing accounts consistently', async () => {
+    const sql = await readFile(new URL('./0010_zero_based_ranked_rating.sql', import.meta.url), 'utf8');
+
+    expect(sql).toContain('alter column current_rating set default 0');
+    expect(sql).toContain("'UNRANKED_PUBLIC'");
+    expect(sql).toContain('delete from devleague.rating_history');
+    expect(sql).toContain('set current_rating = 0');
+    expect(sql).toContain('games = 0');
+  });
+});

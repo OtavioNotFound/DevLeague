@@ -1,4 +1,4 @@
-import { Controller, Delete, Get, HttpCode, Post, Put, UseGuards } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Delete, Get, HttpCode, Post, Put, UseGuards } from '@nestjs/common';
 import { CurrentPrincipal, type AuthPrincipal } from '../auth/auth-principal.js';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard.js';
 import { MatchmakingService } from './matchmaking.service.js';
@@ -10,8 +10,11 @@ export class MatchmakingController {
 
   @Put('entry')
   @HttpCode(202)
-  upsert(@CurrentPrincipal() principal: AuthPrincipal) {
-    return this.matchmaking.upsert(principal);
+  upsert(@CurrentPrincipal() principal: AuthPrincipal, @Body() body: { readonly mode?: unknown }) {
+    if (body.mode !== 'RANKED' && body.mode !== 'UNRANKED') {
+      throw new BadRequestException({ code: 'INVALID_MATCHMAKING_MODE', field: 'mode' });
+    }
+    return this.matchmaking.upsert(principal, body.mode);
   }
 
   @Get('entry')

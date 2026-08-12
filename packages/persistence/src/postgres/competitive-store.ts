@@ -100,7 +100,7 @@ export interface PersistedMatchSnapshot {
 export class CompetitiveStore {
   constructor(private readonly database: Database) {}
 
-  async provisionUser(userId: string, initialRating = 1_200): Promise<void> {
+  async provisionUser(userId: string, initialRating = 0): Promise<void> {
     await this.database.begin(async (transaction) => {
       await transaction`
         insert into devleague.app_user (id)

@@ -29,9 +29,15 @@ async function main(): Promise<void> {
 
   try {
     while (running) {
-      const matchId = await coordinator.runOnce(region);
-      if (matchId) log('match.created', { matchId, region });
-      else await delay(pollMs);
+      let matchId: string | null = null;
+      for (const mode of ['RANKED', 'UNRANKED'] as const) {
+        matchId = await coordinator.runOnce(region, mode);
+        if (matchId) {
+          log('match.created', { matchId, region, mode });
+          break;
+        }
+      }
+      if (!matchId) await delay(pollMs);
     }
   } finally {
     await Promise.all([closeDatabase(database), closeRedisClient(redis)]);

@@ -1,26 +1,30 @@
 import { randomUUID } from 'node:crypto';
 import type {
   MatchmakingEntry,
+  MatchmakingMode,
   MatchmakingPair,
   MatchmakingQueuePort
 } from '@devleague/application';
 import type { DevLeagueRedisClient } from './redis-client.js';
 
-const ENTRIES = 'devleague:{mm}:entries';
-const RESERVATIONS = 'devleague:{mm}:reservations';
-const RESERVATION_DUE = 'devleague:{mm}:reservation-due';
+const ENTRIES = 'devleague:{mm}:entries:v2';
+const RESERVATIONS = 'devleague:{mm}:reservations:v2';
+const RESERVATION_DUE = 'devleague:{mm}:reservation-due:v2';
 
 export class RedisMatchmakingQueue implements MatchmakingQueuePort {
   constructor(private readonly redis: DevLeagueRedisClient) {}
 
   async upsert(entry: MatchmakingEntry): Promise<MatchmakingEntry> {
     const existing = await this.get(entry.userId);
-    const stored = existing
+    if (existing && existing.mode !== entry.mode) {
+      await this.redis.zRem(queueKey(existing.region, existing.mode), entry.userId);
+    }
+    const stored = existing && existing.region === entry.region && existing.mode === entry.mode
       ? { ...entry, id: existing.id, enteredAt: existing.enteredAt }
       : entry;
     await this.redis.multi()
       .hSet(ENTRIES, entry.userId, JSON.stringify(stored))
-      .zAdd(queueKey(entry.region), [{ score: stored.enteredAt, value: entry.userId }])
+      .zAdd(queueKey(entry.region, entry.mode), [{ score: stored.enteredAt, value: entry.userId }])
       .exec();
     return stored;
   }
@@ -42,7 +46,7 @@ export class RedisMatchmakingQueue implements MatchmakingQueuePort {
     const entry = parseEntry(serialized);
     await this.redis.multi()
       .hDel(ENTRIES, userId)
-      .zRem(queueKey(entry.region), userId)
+      .zRem(queueKey(entry.region, entry.mode), userId)
       .exec();
     return true;
   }
@@ -55,12 +59,12 @@ export class RedisMatchmakingQueue implements MatchmakingQueuePort {
     return updated;
   }
 
-  async claimPair(region: string, now: number): Promise<MatchmakingPair | null> {
+  async claimPair(region: string, mode: MatchmakingMode, now: number): Promise<MatchmakingPair | null> {
     const pairId = randomUUID();
     const reservationExpiresAt = now + 30_000;
     const result = await this.redis.sendCommand([
-      'EVAL', CLAIM_PAIR_SCRIPT, '4', queueKey(region), ENTRIES, RESERVATIONS,
-      RESERVATION_DUE, pairId, region, String(now), String(reservationExpiresAt)
+      'EVAL', CLAIM_PAIR_SCRIPT, '4', queueKey(region, mode), ENTRIES, RESERVATIONS,
+      RESERVATION_DUE, pairId, region, mode, String(now), String(reservationExpiresAt)
     ]);
     if (!Array.isArray(result) || result.length !== 2) return null;
     const [firstSerialized, secondSerialized] = result;
@@ -68,6 +72,7 @@ export class RedisMatchmakingQueue implements MatchmakingQueuePort {
     return {
       id: pairId,
       region,
+      mode,
       first: parseEntry(firstSerialized),
       second: parseEntry(secondSerialized),
       reservationExpiresAt
@@ -83,7 +88,7 @@ export class RedisMatchmakingQueue implements MatchmakingQueuePort {
 
   async releasePair(pair: MatchmakingPair): Promise<void> {
     await this.redis.sendCommand([
-      'EVAL', RELEASE_PAIR_SCRIPT, '4', queueKey(pair.region), ENTRIES,
+      'EVAL', RELEASE_PAIR_SCRIPT, '4', queueKey(pair.region, pair.mode), ENTRIES,
       RESERVATIONS, RESERVATION_DUE, pair.id
     ]);
   }
@@ -97,8 +102,8 @@ export class RedisMatchmakingQueue implements MatchmakingQueuePort {
   }
 }
 
-function queueKey(region: string): string {
-  return `devleague:{mm}:queue:${region}`;
+function queueKey(region: string, mode: MatchmakingMode): string {
+  return `devleague:{mm}:queue:${region}:${mode}`;
 }
 
 function parseEntry(serialized: string): MatchmakingEntry {
@@ -112,12 +117,13 @@ function isEntry(value: unknown): value is MatchmakingEntry {
   const entry = value as Record<string, unknown>;
   return typeof entry.id === 'string' && typeof entry.userId === 'string' &&
     typeof entry.rating === 'number' && typeof entry.region === 'string' &&
+    (entry.mode === 'RANKED' || entry.mode === 'UNRANKED') &&
     typeof entry.enteredAt === 'number' && typeof entry.expiresAt === 'number';
 }
 
 const CLAIM_PAIR_SCRIPT = `
 local users = redis.call('ZRANGE', KEYS[1], 0, 199)
-local now = tonumber(ARGV[3])
+local now = tonumber(ARGV[4])
 for i = 1, #users do
   local firstJson = redis.call('HGET', KEYS[2], users[i])
   if firstJson then
@@ -135,9 +141,9 @@ for i = 1, #users do
             local secondRange = math.min(400, 100 + math.floor(math.max(0, now-second.enteredAt)/30000)*25)
             if math.abs(first.rating-second.rating) <= math.min(firstRange, secondRange) then
               redis.call('ZREM', KEYS[1], users[i], users[j])
-              local reservation = cjson.encode({id=ARGV[1], region=ARGV[2], first=first, second=second, reservationExpiresAt=tonumber(ARGV[4])})
+              local reservation = cjson.encode({id=ARGV[1], region=ARGV[2], mode=ARGV[3], first=first, second=second, reservationExpiresAt=tonumber(ARGV[5])})
               redis.call('HSET', KEYS[3], ARGV[1], reservation)
-              redis.call('ZADD', KEYS[4], ARGV[4], ARGV[1])
+              redis.call('ZADD', KEYS[4], ARGV[5], ARGV[1])
               return {firstJson, secondJson}
             end
           end
@@ -179,10 +185,10 @@ for _, id in ipairs(ids) do
   if reservation then
     local pair = cjson.decode(reservation)
     if redis.call('HEXISTS', KEYS[1], pair.first.userId) == 1 and pair.first.expiresAt > tonumber(ARGV[1]) then
-      redis.call('ZADD', ARGV[2] .. pair.region, pair.first.enteredAt, pair.first.userId)
+      redis.call('ZADD', ARGV[2] .. pair.region .. ':' .. pair.mode, pair.first.enteredAt, pair.first.userId)
     end
     if redis.call('HEXISTS', KEYS[1], pair.second.userId) == 1 and pair.second.expiresAt > tonumber(ARGV[1]) then
-      redis.call('ZADD', ARGV[2] .. pair.region, pair.second.enteredAt, pair.second.userId)
+      redis.call('ZADD', ARGV[2] .. pair.region .. ':' .. pair.mode, pair.second.enteredAt, pair.second.userId)
     end
     redis.call('HDEL', KEYS[2], id)
     recovered = recovered + 1

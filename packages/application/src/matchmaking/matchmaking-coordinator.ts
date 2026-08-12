@@ -1,7 +1,7 @@
-import type { MatchmakingPair, MatchmakingQueuePort } from './matchmaking-port.js';
+import type { MatchmakingMode, MatchmakingPair, MatchmakingQueuePort } from './matchmaking-port.js';
 
 export interface MatchCreationPort {
-  createRankedMatch(pair: MatchmakingPair): Promise<string>;
+  createMatch(pair: MatchmakingPair): Promise<string>;
 }
 
 export class MatchmakingCoordinator {
@@ -10,12 +10,12 @@ export class MatchmakingCoordinator {
     private readonly matches: MatchCreationPort
   ) {}
 
-  async runOnce(region: string, now = Date.now()): Promise<string | null> {
+  async runOnce(region: string, mode: MatchmakingMode, now = Date.now()): Promise<string | null> {
     await this.queue.recoverExpiredReservations(now);
-    const pair = await this.queue.claimPair(region, now);
+    const pair = await this.queue.claimPair(region, mode, now);
     if (!pair) return null;
     try {
-      const matchId = await this.matches.createRankedMatch(pair);
+      const matchId = await this.matches.createMatch(pair);
       await this.queue.completePair(pair);
       return matchId;
     } catch (error: unknown) {

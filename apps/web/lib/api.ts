@@ -100,9 +100,9 @@ export class DevLeagueApi {
     return this.request('/practice/recent');
   }
 
-  async joinQueue(): Promise<MatchmakingEntry> {
-    if (publicConfig.demoMode) return { id: crypto.randomUUID(), userId: demoMe.id, rating: demoMe.rating, region: 'br-sa-east', enteredAt: Date.now(), expiresAt: Date.now() + 30_000 };
-    return this.request('/matchmaking/entry', { method: 'PUT' });
+  async joinQueue(mode: 'RANKED' | 'UNRANKED'): Promise<MatchmakingEntry> {
+    if (publicConfig.demoMode) return { id: crypto.randomUUID(), userId: demoMe.id, rating: demoMe.rating, region: 'br-sa-east', mode, enteredAt: Date.now(), expiresAt: Date.now() + 30_000 };
+    return this.request('/matchmaking/entry', { method: 'PUT', body: { mode } });
   }
 
   async leaveQueue(): Promise<void> {
@@ -111,7 +111,7 @@ export class DevLeagueApi {
   }
 
   async heartbeatQueue(): Promise<MatchmakingEntry | null> {
-    if (publicConfig.demoMode) return { id: crypto.randomUUID(), userId: demoMe.id, rating: demoMe.rating, region: 'br-sa-east', enteredAt: Date.now() - 5_000, expiresAt: Date.now() + 30_000 };
+    if (publicConfig.demoMode) return { id: crypto.randomUUID(), userId: demoMe.id, rating: demoMe.rating, region: 'br-sa-east', mode: 'RANKED', enteredAt: Date.now() - 5_000, expiresAt: Date.now() + 30_000 };
     const entry = await this.request<MatchmakingEntry | undefined>('/matchmaking/heartbeat', {
       method: 'POST',
       allowEmpty: true

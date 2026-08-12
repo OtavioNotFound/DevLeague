@@ -85,7 +85,7 @@ export class UserStore {
         await transaction`
           insert into devleague.rating_account (
             user_id, current_rating, peak_rating, algorithm_version
-          ) values (${userId}, 1200, 1200, 'elo-v1')
+          ) values (${userId}, 0, 0, 'elo-v1')
         `;
 
         const [created] = await transaction<UserRow[]>`

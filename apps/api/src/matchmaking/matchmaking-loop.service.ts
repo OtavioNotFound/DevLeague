@@ -34,9 +34,15 @@ export class MatchmakingLoopService implements OnModuleInit, OnModuleDestroy {
     const pollMs = positiveInteger(process.env.MATCHMAKER_POLL_MS, 500);
     while (this.running) {
       try {
-        const matchId = await coordinator.runOnce(region);
-        if (matchId) log('match.created', { matchId, region });
-        else await delay(pollMs);
+        let matchId: string | null = null;
+        for (const mode of ['RANKED', 'UNRANKED'] as const) {
+          matchId = await coordinator.runOnce(region, mode);
+          if (matchId) {
+            log('match.created', { matchId, region, mode });
+            break;
+          }
+        }
+        if (!matchId) await delay(pollMs);
       } catch (error: unknown) {
         log('matchmaking.error', { errorType: error instanceof Error ? error.name : 'UnknownError' });
         await delay(Math.max(pollMs, 2_000));
@@ -59,4 +65,3 @@ function log(event: string, details: Readonly<Record<string, unknown>>): void {
     timestamp: new Date().toISOString(), level: 'info', service: 'devleague-api', event, ...details
   })}\n`);
 }
-

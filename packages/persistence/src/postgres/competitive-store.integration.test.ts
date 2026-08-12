@@ -282,7 +282,7 @@ interface Fixture {
 
 async function createFixture(
   store: CompetitiveStore,
-  type: 'RANKED_PUBLIC' | 'PRIVATE_UNRANKED' = 'RANKED_PUBLIC'
+  type: 'RANKED_PUBLIC' | 'UNRANKED_PUBLIC' | 'PRIVATE_UNRANKED' = 'RANKED_PUBLIC'
 ): Promise<Fixture> {
   const fixture = {
     matchId: randomUUID(),

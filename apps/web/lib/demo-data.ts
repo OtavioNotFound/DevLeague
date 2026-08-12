@@ -4,8 +4,8 @@ export const demoMe: MeResponse = {
   id: '019ff31b-6ec5-72d0-a306-1619d8c33cc7',
   username: 'otaviocode',
   status: 'ACTIVE',
-  rating: 1248,
-  stats: { peakRating: 1264, games: 12, wins: 7, losses: 5, draws: 0 },
+  rating: 0,
+  stats: { peakRating: 0, games: 0, wins: 0, losses: 0, draws: 0 },
   activeMatchId: null,
   consents: { termsVersion: 'v0.1-alpha', privacyVersion: 'v0.1-alpha', over18: true },
   eligibility: { eligible: true, reasons: [] }

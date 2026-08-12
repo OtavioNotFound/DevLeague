@@ -4,7 +4,7 @@ import {
   Injectable,
   ServiceUnavailableException
 } from '@nestjs/common';
-import type { MatchmakingEntry, MatchmakingQueuePort } from '@devleague/application';
+import type { MatchmakingEntry, MatchmakingMode, MatchmakingQueuePort } from '@devleague/application';
 import type { AuthPrincipal } from '../auth/auth-principal.js';
 import { RedisService } from '../redis/redis.service.js';
 import { UsersService } from '../users/users.service.js';
@@ -19,7 +19,7 @@ export class MatchmakingService {
     private readonly users: UsersService
   ) {}
 
-  async upsert(principal: AuthPrincipal): Promise<MatchmakingEntry> {
+  async upsert(principal: AuthPrincipal, mode: MatchmakingMode): Promise<MatchmakingEntry> {
     if (process.env.MATCHMAKING_ENABLED !== 'true') {
       throw new ServiceUnavailableException({ code: 'MATCHMAKING_DISABLED' });
     }
@@ -37,6 +37,7 @@ export class MatchmakingService {
       userId: me.id,
       rating: me.rating,
       region: this.region,
+      mode,
       enteredAt: now,
       expiresAt: now + this.ttlMs
     });

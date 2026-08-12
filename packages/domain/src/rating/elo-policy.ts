@@ -2,7 +2,7 @@ import type { MatchResultReason, MatchType } from '../match/match.js';
 
 export const ELO_V1 = {
   algorithmVersion: 'elo-v1',
-  initialRating: 1_200,
+  initialRating: 0,
   kFactor: 32,
   scale: 400
 } as const;

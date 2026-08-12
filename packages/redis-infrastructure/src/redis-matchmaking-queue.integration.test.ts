@@ -31,16 +31,16 @@ integration('RedisMatchmakingQueue with Redis', () => {
     users.push(firstUserId, secondUserId);
     await queue.upsert({
       id: randomUUID(), userId: firstUserId, rating: 1200,
-      region: 'test-isolated', enteredAt: now, expiresAt: now + 60_000
+      region: 'test-isolated', mode: 'RANKED', enteredAt: now, expiresAt: now + 60_000
     });
     await queue.upsert({
       id: randomUUID(), userId: secondUserId, rating: 1250,
-      region: 'test-isolated', enteredAt: now, expiresAt: now + 60_000
+      region: 'test-isolated', mode: 'RANKED', enteredAt: now, expiresAt: now + 60_000
     });
 
-    const pair = await queue.claimPair('test-isolated', now);
+    const pair = await queue.claimPair('test-isolated', 'RANKED', now);
     expect(pair).not.toBeNull();
-    expect(await queue.claimPair('test-isolated', now)).toBeNull();
+    expect(await queue.claimPair('test-isolated', 'RANKED', now)).toBeNull();
     if (pair) await queue.releasePair(pair);
     expect(await queue.get(firstUserId)).not.toBeNull();
   });
