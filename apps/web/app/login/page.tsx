@@ -47,5 +47,5 @@ export default function LoginPage() {
     <div className="auth-meta"><label className="checkbox-row"><input type="checkbox" /> Manter conectado</label><Link href="/forgot-password">Esqueci minha senha</Link></div>
     {message && <p className="form-message" role="alert">{message}</p>}
     <button className="button primary large" disabled={loading}>{loading ? 'Entrando…' : <>Entrar <ArrowRight size={18} /></>}</button>
-  </form><p className="auth-switch">Ainda não tem conta? <Link href="/onboarding">Começar agora</Link></p></section><aside className="auth-aside"><span>01</span><blockquote>“A melhor forma de descobrir onde você trava é resolver sob pressão justa.”</blockquote><p>Uma partida. Um problema. Sem distrações.</p></aside></main>;
+  </form><p className="auth-switch">Ainda não tem conta? <Link href="/signup">Começar agora</Link></p></section><aside className="auth-aside"><span>01</span><blockquote>“A melhor forma de descobrir onde você trava é resolver sob pressão justa.”</blockquote><p>Uma partida. Um problema. Sem distrações.</p></aside></main>;
 }

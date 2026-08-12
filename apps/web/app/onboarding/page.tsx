@@ -1,7 +1,7 @@
 'use client';
 
 import { ArrowRight, Check, Code2, LoaderCircle, Scale, ShieldCheck, Swords } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Brand } from '../../components/brand';
 import { ApiError } from '../../lib/api';
 import { createApi, getSupabaseBrowserClient } from '../../lib/auth';
@@ -14,6 +14,19 @@ export default function OnboardingPage() {
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState('');
   const api = useMemo(() => createApi(), []);
+
+  useEffect(() => {
+    if (publicConfig.demoMode) return;
+    void getSupabaseBrowserClient()?.auth.getUser().then(({ data }) => {
+      const metadata: unknown = data.user?.user_metadata;
+      const desiredUsername = typeof metadata === 'object' && metadata !== null && 'desired_username' in metadata
+        ? metadata.desired_username
+        : undefined;
+      if (typeof desiredUsername === 'string' && /^[A-Za-z0-9_]{3,24}$/.test(desiredUsername)) {
+        setUsername((current) => current || desiredUsername);
+      }
+    });
+  }, []);
 
   async function complete() {
     if (!over18 || !terms || !/^[A-Za-z0-9_]{3,24}$/.test(username)) return;
