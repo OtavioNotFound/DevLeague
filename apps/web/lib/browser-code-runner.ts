@@ -4,8 +4,10 @@ export type BrowserExecutionResult =
   | { readonly ok: true; readonly stdout: string }
   | { readonly ok: false; readonly error: string };
 
+let cppWorker: Worker | undefined;
+
 export function canRunInBrowser(language: LanguageKey): boolean {
-  return language === 'python' || language === 'javascript';
+  return language === 'python' || language === 'javascript' || language === 'cpp';
 }
 
 export async function runInBrowser(input: {
@@ -13,9 +15,7 @@ export async function runInBrowser(input: {
   readonly source: string;
   readonly stdin: string;
 }): Promise<BrowserExecutionResult> {
-  if (!canRunInBrowser(input.language)) {
-    return { ok: false, error: 'C++ é avaliado pelo judge oficial ao submeter.' };
-  }
+  if (input.language === 'cpp') return runCppInBrowser(input);
 
   const worker = new Worker(URL.createObjectURL(new Blob([workerSource(input.language)], {
     type: 'text/javascript'
@@ -45,21 +45,37 @@ export async function runInBrowser(input: {
   });
 }
 
-export async function runCppLocally(input: {
-  readonly source: string;
-  readonly stdin: string;
-}): Promise<BrowserExecutionResult> {
-  try {
-    const response = await fetch('/api/local-cpp-run', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(input)
-    });
-    const result = await response.json() as { ok?: boolean; stdout?: string; error?: string };
-    return result.ok ? { ok: true, stdout: result.stdout ?? '' } : { ok: false, error: result.error ?? 'Falha ao executar o g++ local.' };
-  } catch {
-    return { ok: false, error: 'Não foi possível acessar o executor C++ local.' };
-  }
+async function runCppInBrowser(input: { readonly source: string; readonly stdin: string }): Promise<BrowserExecutionResult> {
+  cppWorker ??= new Worker(new URL('../workers/cpp-runner.worker.ts', import.meta.url), { type: 'module' });
+  const result = await runWorker(cppWorker, input, 180_000, 'A compilação C++ excedeu o limite local de 3 minutos.', false);
+  if (!result.ok && (result.error.includes('3 minutos') || result.error.includes('iniciar o compilador'))) cppWorker = undefined;
+  return result;
+}
+
+function runWorker(
+  worker: Worker,
+  input: { readonly source: string; readonly stdin: string },
+  timeoutMs: number,
+  timeoutMessage: string,
+  terminateOnFinish = true
+): Promise<BrowserExecutionResult> {
+  return new Promise((resolve) => {
+    const timeout = window.setTimeout(() => {
+      worker.terminate();
+      resolve({ ok: false, error: timeoutMessage });
+    }, timeoutMs);
+    worker.onmessage = (event: MessageEvent<BrowserExecutionResult>) => {
+      window.clearTimeout(timeout);
+      if (terminateOnFinish) worker.terminate();
+      resolve(event.data);
+    };
+    worker.onerror = () => {
+      window.clearTimeout(timeout);
+      worker.terminate();
+      resolve({ ok: false, error: 'Não foi possível iniciar o compilador C++ no navegador.' });
+    };
+    worker.postMessage(input);
+  });
 }
 
 function workerSource(language: LanguageKey): string {

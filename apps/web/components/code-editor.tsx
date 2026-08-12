@@ -6,13 +6,13 @@ import type * as MonacoApi from 'monaco-editor';
 import { CheckCircle2, ChevronDown, LoaderCircle, Play, Send, TerminalSquare } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createApi } from '../lib/auth';
-import { canRunInBrowser, runCppLocally, runInBrowser } from '../lib/browser-code-runner';
+import { canRunInBrowser, runInBrowser } from '../lib/browser-code-runner';
 import { publicConfig } from '../lib/config';
 
 const languages: readonly { key: LanguageKey; label: string; runtime: string }[] = [
-  { key: 'python', label: 'Python', runtime: 'Wasm local + judge' },
-  { key: 'javascript', label: 'JavaScript', runtime: 'Node compatível + judge' },
-  { key: 'cpp', label: 'C++', runtime: 'GCC 15 · judge' }
+  { key: 'python', label: 'Python', runtime: 'Pyodide · Wasm local' },
+  { key: 'javascript', label: 'JavaScript', runtime: 'Web Worker local' },
+  { key: 'cpp', label: 'C++', runtime: 'Clang · Wasm experimental' }
 ];
 
 const storagePrefix = 'devleague:editor:';
@@ -39,9 +39,11 @@ export function CodeEditor({ problem, mode = 'practice', matchId, onMatchSubmitt
 
   async function execute(kind: 'runs' | 'submissions') {
     setState('running');
-    setConsoleText(kind === 'runs' ? 'Executando casos de exemplo…' : 'Enviando para avaliação…');
+    setConsoleText(language === 'cpp' && mode === 'practice'
+      ? 'Carregando Clang/Wasm e compilando no navegador… O primeiro uso pode levar alguns minutos.'
+      : kind === 'runs' ? 'Executando casos de exemplo…' : 'Enviando para avaliação…');
     try {
-      if (mode === 'practice' && kind === 'runs' && canRunInBrowser(language)) {
+      if (mode === 'practice' && canRunInBrowser(language)) {
         const example = problem.examples[0];
         if (!example) throw new Error('este problema ainda não possui caso de exemplo');
         const local = await runInBrowser({ language, source, stdin: example.stdin });
@@ -52,21 +54,7 @@ export function CodeEditor({ problem, mode = 'practice', matchId, onMatchSubmitt
         }
         const accepted = normalizeOutput(local.stdout) === normalizeOutput(example.expectedOutput);
         setState(accepted ? 'accepted' : 'rejected');
-        setConsoleText(`${accepted ? 'ACEITO' : 'RESPOSTA INCORRETA'} · execução local no navegador\n\nSaída:\n${local.stdout || '(vazia)'}`);
-        return;
-      }
-      if (mode === 'practice' && kind === 'runs' && language === 'cpp') {
-        const example = problem.examples[0];
-        if (!example) throw new Error('este problema ainda não possui caso de exemplo');
-        const local = await runCppLocally({ source, stdin: example.stdin });
-        if (!local.ok) {
-          setState('rejected');
-          setConsoleText(`G++ LOCAL\n${local.error}`);
-          return;
-        }
-        const accepted = normalizeOutput(local.stdout) === normalizeOutput(example.expectedOutput);
-        setState(accepted ? 'accepted' : 'rejected');
-        setConsoleText(`${accepted ? 'ACEITO' : 'RESPOSTA INCORRETA'} · g++ local\n\nSaída:\n${local.stdout || '(vazia)'}`);
+        setConsoleText(`${accepted ? 'ACEITO' : 'RESPOSTA INCORRETA'} · validação local no navegador\n\nSaída:\n${local.stdout || '(vazia)'}${kind === 'submissions' ? '\n\nAlpha econômica: resultado validado somente contra o exemplo público e não altera rating.' : ''}`);
         return;
       }
       if (mode === 'match' && kind === 'submissions' && matchId) {
@@ -172,8 +160,8 @@ export function CodeEditor({ problem, mode = 'practice', matchId, onMatchSubmitt
       <footer className="editor-actions">
         <span>Ctrl + Enter executar · Ctrl + S salvar · Ctrl + F buscar</span>
         <div>
-          <button className="button secondary" type="button" disabled={state === 'running'} onClick={() => void execute('runs')}><Play size={16} /> {mode === 'practice' && (canRunInBrowser(language) || language === 'cpp') ? 'Executar localmente' : 'Executar'}</button>
-          <button className="button primary" type="button" disabled={state === 'running'} onClick={() => void execute('submissions')}>{state === 'running' ? <LoaderCircle className="spin" size={17} /> : <Send size={16} />} {mode === 'match' ? 'Enviar solução' : 'Submeter'}</button>
+          <button className="button secondary" type="button" disabled={state === 'running'} onClick={() => void execute('runs')}><Play size={16} /> {mode === 'practice' && canRunInBrowser(language) ? 'Executar no navegador' : 'Executar'}</button>
+          <button className="button primary" type="button" disabled={state === 'running'} onClick={() => void execute('submissions')}>{state === 'running' ? <LoaderCircle className="spin" size={17} /> : <Send size={16} />} {mode === 'match' ? 'Enviar solução' : 'Validar localmente'}</button>
         </div>
       </footer>
     </section>

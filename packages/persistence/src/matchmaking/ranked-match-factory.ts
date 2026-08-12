@@ -35,7 +35,7 @@ export class RankedMatchFactory implements MatchCreationPort {
     return this.matches.createMatch({
       id: randomUUID(),
       originKey: `matchmaking:${pair.id}`,
-      type: 'RANKED_PUBLIC',
+      type: process.env.ALPHA_BROWSER_MATCHES_UNRANKED === 'true' ? 'PRIVATE_UNRANKED' : 'RANKED_PUBLIC',
       problemVersionId: problem.versionId,
       participantUserIds: [pair.first.userId, pair.second.userId],
       startsAt: new Date(Date.now() + 3_000)

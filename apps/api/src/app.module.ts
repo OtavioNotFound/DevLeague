@@ -7,6 +7,7 @@ import { MatchesController } from './matches/matches.controller.js';
 import { MatchesService } from './matches/matches.service.js';
 import { MatchmakingController } from './matchmaking/matchmaking.controller.js';
 import { MatchmakingService } from './matchmaking/matchmaking.service.js';
+import { MatchmakingLoopService } from './matchmaking/matchmaking-loop.service.js';
 import { ProblemsController } from './problems/problems.controller.js';
 import { ProblemsService } from './problems/problems.service.js';
 import { PracticeController } from './practice/practice.controller.js';
@@ -39,6 +40,7 @@ import { UsersService } from './users/users.service.js';
     MatchesService,
     RedisService,
     MatchmakingService,
+    MatchmakingLoopService,
     MatchGateway
   ]
 })
