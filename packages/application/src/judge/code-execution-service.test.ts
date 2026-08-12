@@ -24,7 +24,7 @@ describe('CodeExecutionService', () => {
   it('RF-JUDGE-002 sends only the provider-neutral contract with network denied', async () => {
     const adapter = new DeterministicFakeCodeExecutionAdapter(new Map([['execution-1', accepted]]));
     const service = new CodeExecutionService(adapter, {
-      python: '3.13', java: '21', javascript: '24', cpp: '23'
+      python: '3.13', java: '21', javascript: '24', typescript: '5.9', lua: '5.3', cpp: '23'
     });
 
     await expect(service.execute({
@@ -43,7 +43,7 @@ describe('CodeExecutionService', () => {
 
   it('RF-JUDGE-001 rejects source larger than 64 KiB before calling a provider', () => {
     const service = new CodeExecutionService(new DeterministicFakeCodeExecutionAdapter(), {
-      python: '3.13', java: '21', javascript: '24', cpp: '23'
+      python: '3.13', java: '21', javascript: '24', typescript: '5.9', lua: '5.3', cpp: '23'
     });
 
     expect(() => service.execute({
@@ -56,7 +56,7 @@ describe('CodeExecutionService', () => {
 
   it('RF-JUDGE-007 never turns an unconfigured fake result into Wrong Answer', async () => {
     const service = new CodeExecutionService(new DeterministicFakeCodeExecutionAdapter(), {
-      python: '3.13', java: '21', javascript: '24', cpp: '23'
+      python: '3.13', java: '21', javascript: '24', typescript: '5.9', lua: '5.3', cpp: '23'
     });
 
     await expect(service.execute({
@@ -73,7 +73,7 @@ describe('CodeExecutionService', () => {
   it('supports an explicit accept-all fallback only for local development', async () => {
     const adapter = new DeterministicFakeCodeExecutionAdapter(new Map(), 'ACCEPTED');
     const service = new CodeExecutionService(adapter, {
-      python: '3.13', java: '21', javascript: '24', cpp: '23'
+      python: '3.13', java: '21', javascript: '24', typescript: '5.9', lua: '5.3', cpp: '23'
     });
 
     await expect(service.execute({

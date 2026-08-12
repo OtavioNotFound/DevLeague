@@ -1,4 +1,4 @@
-export type LanguageKey = 'python' | 'java' | 'javascript' | 'cpp';
+export type LanguageKey = 'python' | 'java' | 'javascript' | 'typescript' | 'lua' | 'cpp';
 export type Difficulty = 'EASY' | 'MEDIUM' | 'HARD';
 export type SubmissionStatus = 'QUEUED' | 'RUNNING' | 'FINISHED';
 export type SubmissionVerdict =

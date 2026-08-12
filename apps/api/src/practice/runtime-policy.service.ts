@@ -7,6 +7,8 @@ export class RuntimePolicyService {
     python: process.env.RUNTIME_PYTHON ?? '3.13',
     java: process.env.RUNTIME_JAVA ?? '21',
     javascript: process.env.RUNTIME_JAVASCRIPT ?? '24',
+    typescript: process.env.RUNTIME_TYPESCRIPT ?? '5.9',
+    lua: process.env.RUNTIME_LUA ?? '5.3',
     cpp: process.env.RUNTIME_CPP ?? '23'
   };
 }

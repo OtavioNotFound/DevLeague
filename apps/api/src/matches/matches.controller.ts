@@ -68,7 +68,7 @@ export function validateMatchSubmissionInput(
   body: MatchSubmissionBody
 ): {
   readonly matchId: string;
-  readonly language: 'python' | 'java' | 'javascript' | 'cpp';
+  readonly language: 'python' | 'java' | 'javascript' | 'typescript' | 'lua' | 'cpp';
   readonly source: string;
   readonly idempotencyKey: string;
 } {
@@ -94,6 +94,6 @@ function requireUuid(value: string, code: string): void {
   }
 }
 
-function isLanguage(value: unknown): value is 'python' | 'java' | 'javascript' | 'cpp' {
-  return value === 'python' || value === 'java' || value === 'javascript' || value === 'cpp';
+function isLanguage(value: unknown): value is 'python' | 'java' | 'javascript' | 'typescript' | 'lua' | 'cpp' {
+  return value === 'python' || value === 'java' || value === 'javascript' || value === 'typescript' || value === 'lua' || value === 'cpp';
 }

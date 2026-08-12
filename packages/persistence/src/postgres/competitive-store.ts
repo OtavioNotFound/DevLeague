@@ -316,7 +316,7 @@ export class CompetitiveStore {
     readonly id: string;
     readonly matchId: string;
     readonly userId: string;
-    readonly languageKey: 'python' | 'java' | 'javascript' | 'cpp';
+    readonly languageKey: 'python' | 'java' | 'javascript' | 'typescript' | 'lua' | 'cpp';
     readonly runtimeVersion: string;
     readonly sourceRef: string;
     readonly source: string;

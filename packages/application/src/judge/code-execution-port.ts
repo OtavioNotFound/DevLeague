@@ -1,4 +1,4 @@
-export type ExecutionLanguage = 'python' | 'java' | 'javascript' | 'cpp';
+export type ExecutionLanguage = 'python' | 'java' | 'javascript' | 'typescript' | 'lua' | 'cpp';
 
 export type ExecutionVerdict =
   | 'ACCEPTED'

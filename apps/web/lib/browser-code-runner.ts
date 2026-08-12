@@ -1,4 +1,5 @@
 import type { LanguageKey } from '@devleague/contracts';
+import ts from 'typescript';
 
 export type BrowserExecutionResult =
   | { readonly ok: true; readonly stdout: string }
@@ -6,11 +7,12 @@ export type BrowserExecutionResult =
 
 let cppWorker: Worker | undefined;
 let pythonWorker: Worker | undefined;
+let luaWorker: Worker | undefined;
 
 const pyodideCdnUrl = 'https://cdn.jsdelivr.net/pyodide/v0.29.2/full/';
 
 export function canRunInBrowser(language: LanguageKey): boolean {
-  return language === 'python' || language === 'javascript' || language === 'cpp';
+  return language === 'python' || language === 'javascript' || language === 'typescript' || language === 'lua' || language === 'cpp';
 }
 
 export async function runInBrowser(input: {
@@ -20,8 +22,14 @@ export async function runInBrowser(input: {
 }): Promise<BrowserExecutionResult> {
   if (input.language === 'cpp') return runCppInBrowser(input);
   if (input.language === 'python') return runPythonInBrowser(input);
+  if (input.language === 'lua') return runLuaInBrowser(input);
 
-  const worker = new Worker(URL.createObjectURL(new Blob([workerSource(input.language)], {
+  const executableInput = input.language === 'typescript'
+    ? transpileTypeScript(input)
+    : input;
+  if ('error' in executableInput) return executableInput;
+
+  const worker = new Worker(URL.createObjectURL(new Blob([javascriptWorkerSource], {
     type: 'text/javascript'
   })));
 
@@ -41,8 +49,36 @@ export async function runInBrowser(input: {
       worker.terminate();
       resolve({ ok: false, error: 'Não foi possível iniciar a execução local.' });
     };
-    worker.postMessage(input);
+    worker.postMessage(executableInput);
   });
+}
+
+function transpileTypeScript(input: { readonly source: string; readonly stdin: string }): { readonly source: string; readonly stdin: string } | BrowserExecutionResult {
+  const result = ts.transpileModule(input.source, {
+    compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.None },
+    reportDiagnostics: true
+  });
+  const errors = result.diagnostics?.filter((diagnostic) => diagnostic.category === ts.DiagnosticCategory.Error) ?? [];
+  if (errors.length > 0) {
+    return { ok: false, error: errors.map((diagnostic) => ts.flattenDiagnosticMessageText(diagnostic.messageText, '\n')).join('\n') };
+  }
+  return { source: result.outputText, stdin: input.stdin };
+}
+
+async function runLuaInBrowser(input: { readonly source: string; readonly stdin: string }): Promise<BrowserExecutionResult> {
+  luaWorker ??= new Worker(URL.createObjectURL(new Blob([
+    luaWorkerSource.replace('__DEVLEAGUE_FENGARI_URL__', new URL('/api/lua/fengari-web.js', window.location.origin).href)
+  ], { type: 'text/javascript' })));
+  const result = await runWorker(
+    luaWorker,
+    input,
+    5_000,
+    'A execução Lua excedeu o limite local de 5 segundos.',
+    'Não foi possível iniciar Lua no navegador.',
+    false
+  );
+  if (!result.ok && (result.error.includes('5 segundos') || result.error.includes('iniciar Lua'))) luaWorker = undefined;
+  return result;
 }
 
 async function runPythonInBrowser(input: { readonly source: string; readonly stdin: string }): Promise<BrowserExecutionResult> {
@@ -93,17 +129,13 @@ function runWorker(
       if (terminateOnFinish) worker.terminate();
       resolve(event.data);
     };
-    worker.onerror = () => {
+    worker.onerror = (event) => {
       window.clearTimeout(timeout);
       worker.terminate();
-      resolve({ ok: false, error: startupErrorMessage });
+      resolve({ ok: false, error: event.message ? `${startupErrorMessage} ${event.message}` : startupErrorMessage });
     };
     worker.postMessage(input);
   });
-}
-
-function workerSource(language: LanguageKey): string {
-  return language === 'python' ? pythonWorkerSource : javascriptWorkerSource;
 }
 
 const javascriptWorkerSource = `
@@ -157,6 +189,51 @@ finally:
 _stdout.getvalue()
     \`);
     self.postMessage({ ok: true, stdout: String(stdout) });
+  } catch (error) {
+    self.postMessage({ ok: false, error: error instanceof Error ? error.message : String(error) });
+  }
+};`;
+
+const luaWorkerSource = `
+self.window = self;
+importScripts('__DEVLEAGUE_FENGARI_URL__');
+
+self.onmessage = ({ data }) => {
+  try {
+    const luaString = (value) => '[==[' + String(value).replaceAll(']==]', ']=] .. "]==]" .. [==[') + ']==]';
+    const wrapped = \`
+local __input = \${luaString(data.stdin)}
+local __position = 1
+local __output = {}
+io = io or {}
+io.read = function(...)
+  local formats = {...}
+  if #formats == 0 then formats = {"*l"} end
+  local values = {}
+  for _, format in ipairs(formats) do
+    if format == "*n" then
+      local start_at, end_at, token = string.find(__input, "([%+%-]?[%d%.]+)", __position)
+      if token then __position = end_at + 1; values[#values + 1] = tonumber(token) end
+    elseif format == "*a" then
+      values[#values + 1] = string.sub(__input, __position); __position = #__input + 1
+    else
+      local end_at = string.find(__input, "\\\\n", __position, true)
+      values[#values + 1] = string.sub(__input, __position, end_at and end_at - 1 or #__input)
+      __position = end_at and end_at + 1 or #__input + 1
+    end
+  end
+  return table.unpack(values)
+end
+print = function(...)
+  local values = {...}
+  for index = 1, #values do values[index] = tostring(values[index]) end
+  __output[#__output + 1] = table.concat(values, "\\\\t")
+end
+\${data.source}
+return table.concat(__output, "\\\\n") .. (#__output > 0 and "\\\\n" or "")
+\`;
+    const execute = fengari.load(wrapped);
+    self.postMessage({ ok: true, stdout: String(execute()) });
   } catch (error) {
     self.postMessage({ ok: false, error: error instanceof Error ? error.message : String(error) });
   }

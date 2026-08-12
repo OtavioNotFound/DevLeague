@@ -16,19 +16,19 @@ export const demoProblems: readonly ProblemSummary[] = [
     id: '019ff31b-6ec5-72d0-a306-1619d8c33ca1',
     versionId: '019ff31b-6ec5-72d0-a306-1619d8c33cb1',
     slug: 'eco-do-array', title: 'Eco do Array', difficulty: 'EASY',
-    categories: ['arrays', 'logic'], languages: ['python', 'java', 'javascript', 'cpp']
+    categories: ['arrays', 'logic'], languages: ['python', 'java', 'javascript', 'typescript', 'lua', 'cpp']
   },
   {
     id: '019ff31b-6ec5-72d0-a306-1619d8c33ca2',
     versionId: '019ff31b-6ec5-72d0-a306-1619d8c33cb2',
     slug: 'janela-minima', title: 'Janela Mínima', difficulty: 'MEDIUM',
-    categories: ['strings', 'sliding-window'], languages: ['python', 'java', 'javascript', 'cpp']
+    categories: ['strings', 'sliding-window'], languages: ['python', 'java', 'javascript', 'typescript', 'lua', 'cpp']
   },
   {
     id: '019ff31b-6ec5-72d0-a306-1619d8c33ca3',
     versionId: '019ff31b-6ec5-72d0-a306-1619d8c33cb3',
     slug: 'rotas-em-colisao', title: 'Rotas em Colisão', difficulty: 'HARD',
-    categories: ['graphs', 'simulation'], languages: ['python', 'java', 'javascript', 'cpp']
+    categories: ['graphs', 'simulation'], languages: ['python', 'java', 'javascript', 'typescript', 'lua', 'cpp']
   }
 ];
 
@@ -39,6 +39,8 @@ export const demoProblem: ProblemDetail = {
   starterCode: {
     python: 'n = int(input())\nvalues = list(map(int, input().split()))\n\n# escreva sua solução\n',
     javascript: "const fs = require('fs');\nconst input = fs.readFileSync(0, 'utf8').trim().split(/\\s+/).map(Number);\n\n// escreva sua solução\n",
+    typescript: "const input: number[] = require('fs').readFileSync(0, 'utf8').trim().split(/\\s+/).map(Number);\n\n// escreva sua solução\n",
+    lua: 'local n = io.read("*n")\nlocal values = {}\nfor i = 1, n do values[i] = io.read("*n") end\n\n-- escreva sua solução\n',
     java: 'import java.util.*;\n\npublic class Main {\n  public static void main(String[] args) {\n    // escreva sua solução\n  }\n}\n',
     cpp: '#include <bits/stdc++.h>\nusing namespace std;\n\nint main() {\n  // escreva sua solução\n}\n'
   },

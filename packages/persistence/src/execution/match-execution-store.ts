@@ -48,7 +48,7 @@ export class MatchExecutionStore implements ExecutionJobPort {
         jobId: string;
         attempt: number;
         submissionId: string;
-        language: 'python' | 'java' | 'javascript' | 'cpp';
+        language: 'python' | 'java' | 'javascript' | 'typescript' | 'lua' | 'cpp';
         runtimeVersion: string;
         source: string;
         problemVersionId: string;

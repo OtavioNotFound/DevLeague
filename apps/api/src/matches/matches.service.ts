@@ -33,7 +33,7 @@ export class MatchesService {
 
   async submit(principal: AuthPrincipal, input: {
     readonly matchId: string;
-    readonly language: 'python' | 'java' | 'javascript' | 'cpp';
+    readonly language: 'python' | 'java' | 'javascript' | 'typescript' | 'lua' | 'cpp';
     readonly source: string;
     readonly idempotencyKey: string;
   }) {

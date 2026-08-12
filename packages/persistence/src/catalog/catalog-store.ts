@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import type { Database } from '../postgres/database.js';
 
-export type LanguageKey = 'python' | 'java' | 'javascript' | 'cpp';
+export type LanguageKey = 'python' | 'java' | 'javascript' | 'typescript' | 'lua' | 'cpp';
 export type Difficulty = 'EASY' | 'MEDIUM' | 'HARD';
 export type OutputComparator = 'EXACT' | 'TRIM_FINAL_NEWLINES' | 'TOKENS';
 

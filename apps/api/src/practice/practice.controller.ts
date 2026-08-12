@@ -125,7 +125,7 @@ export function validatePracticeInput(
 }
 
 function isLanguage(value: unknown): value is LanguageKey {
-  return value === 'python' || value === 'java' || value === 'javascript' || value === 'cpp';
+  return value === 'python' || value === 'java' || value === 'javascript' || value === 'typescript' || value === 'lua' || value === 'cpp';
 }
 
 function isUuid(value: string): boolean {

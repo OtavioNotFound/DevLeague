@@ -12,6 +12,8 @@ import { publicConfig } from '../lib/config';
 const languages: readonly { key: LanguageKey; label: string; runtime: string }[] = [
   { key: 'python', label: 'Python', runtime: 'Pyodide · Wasm local' },
   { key: 'javascript', label: 'JavaScript', runtime: 'Web Worker local' },
+  { key: 'typescript', label: 'TypeScript', runtime: 'TypeScript · local' },
+  { key: 'lua', label: 'Lua', runtime: 'Fengari · local' },
   { key: 'cpp', label: 'C++', runtime: 'Clang · Wasm experimental' }
 ];
 
@@ -91,7 +93,7 @@ export function CodeEditor({ problem, mode = 'practice', matchId, onMatchSubmitt
       rules: [{ token: 'comment', foreground: '718096' }],
       colors: { 'editor.background': '#090c10', 'editor.lineHighlightBackground': '#10161f', 'editorCursor.foreground': '#7b92ff' }
     });
-    for (const languageId of ['python', 'javascript', 'cpp']) {
+    for (const languageId of ['python', 'javascript', 'typescript', 'lua', 'cpp']) {
       monaco.languages.registerCompletionItemProvider(languageId, {
         provideCompletionItems: (model: MonacoApi.editor.ITextModel, position: MonacoApi.IPosition) => ({
           suggestions: completionSuggestions(monaco, languageId, model.getWordUntilPosition(position), position)
@@ -209,6 +211,19 @@ function completionSuggestions(
       { label: 'reduce', detail: 'Reduz um array a um valor', insertText: '${1:items}.reduce((${2:acc}, ${3:item}) => ${0:acc + item}, ${4:0})' },
       { label: 'ordenar números', detail: 'Ordena um array numericamente', insertText: '${1:nums}.sort((a, b) => a - b);' }
     ],
+    typescript: [
+      { label: 'ler entrada', detail: 'Lê stdin como texto', insertText: 'const input: string = require("fs").readFileSync(0, "utf8").trim();' },
+      { label: 'ler inteiros', detail: 'Lê todos os inteiros', insertText: 'const nums: number[] = require("fs").readFileSync(0, "utf8").trim().split(/\\s+/).map(Number);' },
+      { label: 'for', detail: 'Laço for tipado', insertText: 'for (let ${1:i}: number = 0; ${1:i} < ${2:n}; ${1:i} += 1) {\n\t${0}\n}' },
+      { label: 'função', detail: 'Define uma função tipada', insertText: 'function ${1:nome}(${2:valor}: ${3:number}): ${4:number} {\n\t${0:return valor;}\n}' }
+    ],
+    lua: [
+      { label: 'ler números', detail: 'Lê dois números da entrada', insertText: 'local ${1:a}, ${2:b} = io.read("*n", "*n")' },
+      { label: 'for', detail: 'Laço numérico', insertText: 'for ${1:i} = 1, ${2:n} do\n\t${0}\nend' },
+      { label: 'while', detail: 'Laço while', insertText: 'while ${1:condicao} do\n\t${0}\nend' },
+      { label: 'if', detail: 'Condição', insertText: 'if ${1:condicao} then\n\t${0}\nend' },
+      { label: 'função', detail: 'Define uma função', insertText: 'local function ${1:nome}(${2:parametro})\n\t${0}\nend' }
+    ],
     cpp: [
       { label: 'iostream', detail: 'Base C++ para entrada e saída', insertText: '#include <iostream>\nusing namespace std;\n\nint main() {\n\t${0}\n\treturn 0;\n}' },
       { label: 'bits', detail: 'Base competitiva com biblioteca padrão', insertText: '#include <bits/stdc++.h>\nusing namespace std;\n\nint main() {\n\tios::sync_with_stdio(false);\n\tcin.tie(nullptr);\n\n\t${0}\n\treturn 0;\n}' },
@@ -226,6 +241,8 @@ function completionSuggestions(
   const keywords: Record<string, readonly string[]> = {
     python: ['and', 'as', 'assert', 'async', 'await', 'break', 'class', 'continue', 'def', 'del', 'elif', 'else', 'except', 'False', 'finally', 'for', 'from', 'global', 'if', 'import', 'in', 'is', 'lambda', 'None', 'nonlocal', 'not', 'or', 'pass', 'raise', 'return', 'True', 'try', 'while', 'with', 'yield'],
     javascript: ['async', 'await', 'break', 'case', 'catch', 'class', 'const', 'continue', 'debugger', 'default', 'delete', 'do', 'else', 'export', 'extends', 'false', 'finally', 'for', 'function', 'if', 'import', 'in', 'instanceof', 'let', 'new', 'null', 'of', 'return', 'static', 'super', 'switch', 'this', 'throw', 'true', 'try', 'typeof', 'undefined', 'var', 'void', 'while', 'yield'],
+    typescript: ['abstract', 'any', 'as', 'async', 'await', 'boolean', 'break', 'case', 'catch', 'class', 'const', 'continue', 'default', 'do', 'else', 'enum', 'export', 'extends', 'false', 'finally', 'for', 'function', 'if', 'implements', 'import', 'interface', 'keyof', 'let', 'never', 'new', 'null', 'number', 'private', 'protected', 'public', 'readonly', 'return', 'string', 'type', 'typeof', 'undefined', 'unknown', 'void', 'while'],
+    lua: ['and', 'break', 'do', 'else', 'elseif', 'end', 'false', 'for', 'function', 'goto', 'if', 'in', 'local', 'nil', 'not', 'or', 'repeat', 'return', 'then', 'true', 'until', 'while'],
     cpp: ['alignas', 'auto', 'bool', 'break', 'case', 'catch', 'char', 'class', 'const', 'constexpr', 'continue', 'default', 'do', 'double', 'else', 'enum', 'false', 'float', 'for', 'if', 'include', 'inline', 'int', 'long', 'namespace', 'nullptr', 'private', 'protected', 'public', 'return', 'short', 'signed', 'sizeof', 'static', 'struct', 'switch', 'template', 'this', 'throw', 'true', 'try', 'typedef', 'typename', 'unsigned', 'using', 'vector', 'void', 'while']
   };
   const range = { startLineNumber: position.lineNumber, endLineNumber: position.lineNumber, startColumn: word.startColumn, endColumn: word.endColumn };
@@ -240,7 +257,7 @@ function completionSuggestions(
   }));
   const keywordItems = (keywords[language] ?? []).map((keyword) => ({
     label: keyword,
-    detail: `Palavra-chave de ${language === 'cpp' ? 'C++' : language === 'javascript' ? 'JavaScript' : 'Python'}`,
+    detail: `Palavra-chave de ${language === 'cpp' ? 'C++' : language === 'javascript' ? 'JavaScript' : language === 'typescript' ? 'TypeScript' : language === 'lua' ? 'Lua' : 'Python'}`,
     kind: monaco.languages.CompletionItemKind.Keyword,
     insertText: keyword,
     sortText: `1-${keyword}`,
