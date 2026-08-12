@@ -1,0 +1,21 @@
+packages:
+  - apps/*
+  - packages/*
+
+allowBuilds:
+  '@scarf/scarf': false
+  esbuild: true
+
+minimumReleaseAgeExclude:
+  - '@redis/bloom@6.2.1'
+  - '@redis/client@6.2.1'
+  - '@redis/json@6.2.1'
+  - '@redis/search@6.2.1'
+  - '@redis/time-series@6.2.1'
+  - redis@6.2.1
+  - '@supabase/auth-js@2.112.3'
+  - '@supabase/functions-js@2.112.3'
+  - '@supabase/postgrest-js@2.112.3'
+  - '@supabase/realtime-js@2.112.3'
+  - '@supabase/storage-js@2.112.3'
+  - '@supabase/supabase-js@2.112.3'
