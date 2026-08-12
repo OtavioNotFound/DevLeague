@@ -5,6 +5,9 @@ export type BrowserExecutionResult =
   | { readonly ok: false; readonly error: string };
 
 let cppWorker: Worker | undefined;
+let pythonWorker: Worker | undefined;
+
+const pyodideCdnUrl = 'https://cdn.jsdelivr.net/pyodide/v0.29.2/full/';
 
 export function canRunInBrowser(language: LanguageKey): boolean {
   return language === 'python' || language === 'javascript' || language === 'cpp';
@@ -16,6 +19,7 @@ export async function runInBrowser(input: {
   readonly stdin: string;
 }): Promise<BrowserExecutionResult> {
   if (input.language === 'cpp') return runCppInBrowser(input);
+  if (input.language === 'python') return runPythonInBrowser(input);
 
   const worker = new Worker(URL.createObjectURL(new Blob([workerSource(input.language)], {
     type: 'text/javascript'
@@ -25,7 +29,7 @@ export async function runInBrowser(input: {
     const timeout = window.setTimeout(() => {
       worker.terminate();
       resolve({ ok: false, error: 'Tempo excedido na execução local.' });
-    }, input.language === 'python' ? 20_000 : 3_000);
+    }, 3_000);
 
     worker.onmessage = (event: MessageEvent<BrowserExecutionResult>) => {
       window.clearTimeout(timeout);
@@ -37,26 +41,46 @@ export async function runInBrowser(input: {
       worker.terminate();
       resolve({ ok: false, error: 'Não foi possível iniciar a execução local.' });
     };
-    worker.postMessage({
-      ...input,
-      pyodideUrl: new URL('/api/pyodide/pyodide.js', window.location.origin).href,
-      pyodideIndexUrl: new URL('/api/pyodide/', window.location.origin).href
-    });
+    worker.postMessage(input);
   });
+}
+
+async function runPythonInBrowser(input: { readonly source: string; readonly stdin: string }): Promise<BrowserExecutionResult> {
+  pythonWorker ??= new Worker(URL.createObjectURL(new Blob([pythonWorkerSource], {
+    type: 'text/javascript'
+  })));
+  const result = await runWorker(
+    pythonWorker,
+    { ...input, pyodideUrl: `${pyodideCdnUrl}pyodide.js`, pyodideIndexUrl: pyodideCdnUrl },
+    90_000,
+    'O Python local demorou mais de 90 segundos para iniciar. Verifique sua conexão e tente novamente.',
+    'Não foi possível iniciar o Python no navegador.',
+    false
+  );
+  if (!result.ok && (result.error.includes('90 segundos') || result.error.includes('iniciar o Python'))) pythonWorker = undefined;
+  return result;
 }
 
 async function runCppInBrowser(input: { readonly source: string; readonly stdin: string }): Promise<BrowserExecutionResult> {
   cppWorker ??= new Worker(new URL('../workers/cpp-runner.worker.ts', import.meta.url), { type: 'module' });
-  const result = await runWorker(cppWorker, input, 180_000, 'A compilação C++ excedeu o limite local de 3 minutos.', false);
+  const result = await runWorker(
+    cppWorker,
+    input,
+    180_000,
+    'A compilação C++ excedeu o limite local de 3 minutos.',
+    'Não foi possível iniciar o compilador C++ no navegador.',
+    false
+  );
   if (!result.ok && (result.error.includes('3 minutos') || result.error.includes('iniciar o compilador'))) cppWorker = undefined;
   return result;
 }
 
 function runWorker(
   worker: Worker,
-  input: { readonly source: string; readonly stdin: string },
+  input: { readonly source: string; readonly stdin: string; readonly pyodideUrl?: string; readonly pyodideIndexUrl?: string },
   timeoutMs: number,
   timeoutMessage: string,
+  startupErrorMessage: string,
   terminateOnFinish = true
 ): Promise<BrowserExecutionResult> {
   return new Promise((resolve) => {
@@ -72,7 +96,7 @@ function runWorker(
     worker.onerror = () => {
       window.clearTimeout(timeout);
       worker.terminate();
-      resolve({ ok: false, error: 'Não foi possível iniciar o compilador C++ no navegador.' });
+      resolve({ ok: false, error: startupErrorMessage });
     };
     worker.postMessage(input);
   });

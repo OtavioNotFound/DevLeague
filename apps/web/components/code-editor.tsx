@@ -39,9 +39,11 @@ export function CodeEditor({ problem, mode = 'practice', matchId, onMatchSubmitt
 
   async function execute(kind: 'runs' | 'submissions') {
     setState('running');
-    setConsoleText(language === 'cpp' && mode === 'practice'
-      ? 'Carregando Clang/Wasm e compilando no navegador… O primeiro uso pode levar alguns minutos.'
-      : kind === 'runs' ? 'Executando casos de exemplo…' : 'Enviando para avaliação…');
+    setConsoleText(mode === 'practice' && language === 'cpp'
+      ? 'Baixando o Clang/Wasm e compilando no navegador… O primeiro uso pode levar até 3 minutos; os próximos serão mais rápidos.'
+      : mode === 'practice' && language === 'python'
+        ? 'Carregando o Python/Wasm no navegador… O primeiro uso pode levar alguns segundos.'
+        : kind === 'runs' ? 'Executando casos de exemplo…' : 'Enviando para avaliação…');
     try {
       if (mode === 'practice' && canRunInBrowser(language)) {
         const example = problem.examples[0];
