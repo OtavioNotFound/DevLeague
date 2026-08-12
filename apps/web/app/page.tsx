@@ -12,7 +12,7 @@ export default function LandingPage() {
             <p className="eyebrow">COMPITA. RESOLVA. EVOLUA.</p>
             <h1>PROGRAMAÇÃO<br />É MELHOR <span>NO X1.</span></h1>
             <p className="hero-lead">Um problema. Dois devs. Dez minutos. Vença com lógica, não com sorte.</p>
-            <div className="hero-actions"><Link className="button primary large" href="/onboarding">Começar agora <ArrowRight size={19} /></Link><Link className="button ghost large" href="/practice">Explorar problemas</Link></div>
+            <div className="hero-actions"><Link className="button primary large" href="/signup">Começar agora <ArrowRight size={19} /></Link><Link className="button ghost large" href="/practice">Explorar problemas</Link></div>
             <div className="language-strip"><span>PYTHON</span><span>JAVA</span><span>JAVASCRIPT</span><span>C++</span></div>
           </div>
           <div className="duel-visual" aria-label="Demonstração de uma partida em andamento">
@@ -29,7 +29,7 @@ export default function LandingPage() {
           <article><span>03</span><Trophy /><h3>Suba no rating</h3><p>A primeira solução correta admitida pelo servidor vence.</p></article>
         </div></section>
         <section className="trust-section"><div><p className="eyebrow">COMPETIÇÃO SEM ATALHOS</p><h2>O CÓDIGO FALA.<br />O SERVIDOR DECIDE.</h2></div><div className="trust-list"><p><ShieldCheck /> Execução isolada e sem acesso à rede</p><p><Braces /> Mesmo problema e limites para os dois lados</p><p><CheckCircle2 /> Partidas privadas nunca mexem no rating</p></div></section>
-        <section className="final-cta"><Swords size={38} /><h2>PRONTO PARA O PRIMEIRO X1?</h2><p>A alpha fechada é temporariamente restrita a participantes 18+.</p><Link className="button primary large" href="/onboarding">Entrar na arena <ArrowRight size={19} /></Link></section>
+        <section className="final-cta"><Swords size={38} /><h2>PRONTO PARA O PRIMEIRO X1?</h2><p>A alpha fechada é temporariamente restrita a participantes 18+.</p><Link className="button primary large" href="/signup">Entrar na arena <ArrowRight size={19} /></Link></section>
       </main>
       <footer className="landing-footer"><Brand /><p>DevLeague é um codinome provisório.</p><div><Link href="/terms">Termos</Link><Link href="/privacy">Privacidade</Link></div></footer>
     </div>

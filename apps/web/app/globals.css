@@ -92,3 +92,20 @@ h1 { font-size: clamp(36px, 5vw, 64px); margin-bottom: 14px; } h2 { font-size: c
 @media(max-width:700px){.queue-card{padding:36px 18px;margin:0;box-shadow:none}.queue-rules{grid-template-columns:1fr 1fr}.queue-rules span:nth-child(2){border-right:0}.queue-rules span:nth-child(-n+2){border-bottom:1px solid var(--line)}.arena-header{grid-template-columns:1fr auto}.arena-clock{grid-row:1;grid-column:2}.arena-actions{display:none}.arena-score{grid-template-columns:1fr}.arena-score>div{border-right:0;border-bottom:1px solid var(--line)}.result-shortcut{min-height:46px}.forfeit-bar{align-items:stretch;flex-direction:column}.result-stats{grid-template-columns:1fr}.result-stats article{border-right:0;border-bottom:1px solid var(--line)}.result-actions{align-items:stretch;flex-direction:column}.result-actions>.text-link{margin:12px 0 0;justify-content:center}.settings-nav{grid-template-columns:1fr}.settings-nav a{justify-content:start}.profile-stats{grid-template-columns:1fr 1fr}.history-row{grid-template-columns:38px 1fr 50px}.history-row time{display:none}}
 .catalog-loading { min-height: 220px; display: flex; align-items: center; justify-content: center; gap: 10px; border: 1px solid var(--line); color: var(--muted); }
 .filter-select { min-width: 150px; display: flex; align-items: center; gap: 8px; padding: 0 12px; border: 1px solid var(--line-strong); background: var(--surface-2); color: var(--muted); }.filter-select select { flex: 1; height: 46px; border: 0; outline: 0; background: transparent; color: var(--text); }.catalog-empty { grid-column: 1 / -1; padding: 44px 22px; border-top: 1px solid var(--line); text-align: center; color: var(--muted); }
+
+/* Cadastro */
+.input-icon button { cursor: pointer; }
+.form-message { display: flex; align-items: flex-start; gap: 9px; }
+.form-message.success { background: #10231b; color: #a7e6c7; border-left-color: var(--success); }
+.form-message svg { flex: none; margin-top: 2px; }
+.signup-page .auth-panel { padding-top: 86px; padding-bottom: 52px; }
+.signup-page .form-grid { gap: 13px; }
+.field-error { color: var(--danger) !important; }
+.signup-consents { display: grid; gap: 8px; padding-top: 4px; }
+.signup-consents .checkbox-row { padding: 10px 0; }
+.signup-consents .checkbox-row span { display: block; }
+.signup-consents .checkbox-row a { display: inline; color: var(--brand); text-decoration: underline; text-underline-offset: 2px; }
+.signup-consents small { display: block; color: var(--muted); }
+.auth-state { display: grid; justify-items: start; }
+.auth-state>p:not(.eyebrow) { color: var(--muted); margin-bottom: 30px; }
+.auth-state.success>svg { color: var(--success); margin-bottom: 18px; }

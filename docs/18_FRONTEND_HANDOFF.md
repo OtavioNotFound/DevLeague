@@ -48,7 +48,7 @@ O app `@devleague/web` foi criado em Next.js 16 e React 19, consumindo os tipos 
 
 Rotas implementadas:
 
-- landing, login, recuperação de senha e onboarding 18+;
+- landing, cadastro por e-mail/senha, login, solicitação/definição de nova senha e onboarding 18+;
 - home do competidor e perfil público;
 - catálogo Practice, enunciado, editor multi-linguagem, execução e submissão;
 - fila de matchmaking público, estado de rival encontrado e cancelamento;
@@ -66,6 +66,8 @@ Integrações preparadas no cliente:
 
 Integrações operacionais concluídas no cliente:
 
+- cadastro com Supabase Auth, confirmação de e-mail quando configurada, retomada segura do username desejado e persistência server-side do perfil/aceites apenas com sessão válida;
+- recuperação de acesso pelo Supabase com resposta anti-enumeração, sessão temporária do link e encerramento da sessão após a troca de senha;
 - guarda de sessão Supabase nas áreas autenticadas, com redirecionamento por `401`, usuário não inicializado, consentimentos pendentes e partida ativa;
 - bootstrap de username e registro das versões vigentes de Termos/Privacidade no onboarding;
 - catálogo e detalhe de Practice carregados da API quando o modo demo está desligado;
@@ -78,8 +80,8 @@ O modo real é ativado por `NEXT_PUBLIC_DEMO_MODE=false` após preencher `apps/w
 
 Validação desta entrega:
 
-- build de produção do Next concluído com 14 rotas;
+- build de produção do Next concluído com 16 rotas;
 - TypeScript e ESLint sem erros;
 - `pnpm check` aprovado no monorepo;
-- 65 testes unitários aprovados;
+- 72 testes unitários aprovados;
 - 10 testes de integração continuam condicionados a PostgreSQL e Redis reais.
