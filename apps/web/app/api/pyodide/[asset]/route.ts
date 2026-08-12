@@ -1,5 +1,3 @@
-import { readFile } from 'node:fs/promises';
-import { join } from 'node:path';
 import { NextResponse } from 'next/server';
 
 const assets = new Map([
@@ -9,6 +7,7 @@ const assets = new Map([
   ['python_stdlib.zip', 'application/zip'],
   ['pyodide-lock.json', 'application/json; charset=utf-8']
 ]);
+const pyodideCdnUrl = 'https://cdn.jsdelivr.net/pyodide/v0.29.2/full/';
 
 export async function GET(
   _request: Request,
@@ -18,11 +17,5 @@ export async function GET(
   const contentType = assets.get(asset);
   if (!contentType) return new NextResponse('Not found', { status: 404 });
 
-  const file = await readFile(join(process.cwd(), 'node_modules', 'pyodide', asset));
-  return new NextResponse(file, {
-    headers: {
-      'Content-Type': contentType,
-      'Cache-Control': 'public, max-age=31536000, immutable'
-    }
-  });
+  return NextResponse.redirect(new URL(asset, pyodideCdnUrl), 307);
 }
