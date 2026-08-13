@@ -271,6 +271,88 @@ integration('CompetitiveStore with PostgreSQL', () => {
       reason: 'ACCEPTED'
     });
   });
+
+  it('RN-TIME-004 rejects submissions before the server countdown finishes', async () => {
+    const fixture = await createFixture(store, 'UNRANKED_PUBLIC', {
+      autoReady: false
+    });
+    await store.markReady(fixture.matchId, fixture.firstUserId, 30);
+    await store.markReady(fixture.matchId, fixture.secondUserId, 30);
+
+    await expect(admit(store, fixture, fixture.firstUserId, randomUUID()))
+      .rejects.toMatchObject({ code: 'MATCH_NOT_ACTIVE' });
+    const snapshot = await store.getSnapshot(fixture.matchId, fixture.firstUserId);
+    expect(snapshot?.status).toBe('COUNTDOWN');
+  });
+
+  it('RN-TIME-005 activates due matches and finishes an empty deadline as a draw', async () => {
+    const fixture = await createFixture(store, 'UNRANKED_PUBLIC', {
+      startsAt: new Date(Date.now() - 2_000),
+      durationSeconds: 1
+    });
+    await database`
+      update devleague.match
+      set starts_at = clock_timestamp() - interval '2 seconds',
+          ends_at = clock_timestamp() - interval '1 second'
+      where id = ${fixture.matchId}
+    `;
+
+    const progress = await store.advanceLifecycle({ resolutionGraceSeconds: 60 });
+    const snapshot = await store.getSnapshot(fixture.matchId, fixture.firstUserId);
+    expect(progress).toMatchObject({ activated: 1, reachedDeadline: 1 });
+    expect(snapshot).toMatchObject({ status: 'FINISHED', result: { reason: 'DRAW_TIMEOUT' } });
+  });
+
+  it('RF-JUDGE-007 voids a match whose pending judge work exceeds the technical grace', async () => {
+    const fixture = await createFixture(store, 'RANKED_PUBLIC');
+    const submission = await admit(store, fixture, fixture.firstUserId, randomUUID());
+    await database`
+      update devleague.match
+      set starts_at = clock_timestamp() - interval '3 minutes',
+          ends_at = clock_timestamp() - interval '2 minutes'
+      where id = ${fixture.matchId}
+    `;
+
+    const progress = await store.advanceLifecycle({ resolutionGraceSeconds: 60 });
+    const snapshot = await store.getSnapshot(fixture.matchId, fixture.firstUserId);
+    const [storedSubmission] = await database<{ verdict: string; status: string }[]>`
+      select verdict, status from devleague.submission where id = ${submission.id}
+    `;
+    expect(progress).toMatchObject({ reachedDeadline: 1, voidedAfterGrace: 1 });
+    expect(snapshot).toMatchObject({ status: 'FINISHED', result: { reason: 'VOID_SYSTEM' } });
+    expect(storedSubmission).toMatchObject({ status: 'FINISHED', verdict: 'SYSTEM_ERROR' });
+  });
+
+  it('finishes a resolving timeout as soon as the last pending verdict is not accepted', async () => {
+    const fixture = await createFixture(store, 'UNRANKED_PUBLIC');
+    const submission = await admit(store, fixture, fixture.firstUserId, randomUUID());
+    await database`
+      update devleague.match set ends_at = clock_timestamp() - interval '1 second'
+      where id = ${fixture.matchId}
+    `;
+    expect(await store.reachDeadline(fixture.matchId)).toBeNull();
+
+    const result = await store.recordTerminalVerdict({
+      submissionId: submission.id,
+      verdict: 'WRONG_ANSWER'
+    });
+
+    expect(result).toMatchObject({ reason: 'DRAW_TIMEOUT', winnerUserId: null });
+  });
+
+  it('hides the competitive problem until both participants are ready', async () => {
+    const fixture = await createFixture(store, 'UNRANKED_PUBLIC', { autoReady: false });
+
+    expect((await store.getSnapshot(fixture.matchId, fixture.firstUserId))?.problem).toBeNull();
+    await store.markReady(fixture.matchId, fixture.firstUserId, 30);
+    expect((await store.getSnapshot(fixture.matchId, fixture.firstUserId))?.problem).toBeNull();
+    await store.markReady(fixture.matchId, fixture.secondUserId, 30);
+
+    const snapshot = await store.getSnapshot(fixture.matchId, fixture.firstUserId);
+    expect(snapshot?.problem?.versionId).toBe(fixture.problemVersionId);
+    expect(snapshot?.lobbyExpiresAt).toBeNull();
+    expect(snapshot?.participants.every((participant) => participant.ready)).toBe(true);
+  });
 });
 
 interface Fixture {
@@ -282,7 +364,12 @@ interface Fixture {
 
 async function createFixture(
   store: CompetitiveStore,
-  type: 'RANKED_PUBLIC' | 'UNRANKED_PUBLIC' | 'PRIVATE_UNRANKED' = 'RANKED_PUBLIC'
+  type: 'RANKED_PUBLIC' | 'UNRANKED_PUBLIC' | 'PRIVATE_UNRANKED' = 'RANKED_PUBLIC',
+  options: {
+    readonly startsAt?: Date;
+    readonly durationSeconds?: number;
+    readonly autoReady?: boolean;
+  } = {}
 ): Promise<Fixture> {
   const fixture = {
     matchId: randomUUID(),
@@ -306,8 +393,13 @@ async function createFixture(
     type,
     problemVersionId: fixture.problemVersionId,
     participantUserIds: [fixture.firstUserId, fixture.secondUserId],
-    startsAt: new Date(Date.now() - 1_000)
+    startsAt: options.startsAt ?? new Date(Date.now() - 1_000),
+    ...(options.durationSeconds ? { durationSeconds: options.durationSeconds } : {})
   });
+  if (options.autoReady !== false) {
+    await store.markReady(fixture.matchId, fixture.firstUserId, 0);
+    await store.markReady(fixture.matchId, fixture.secondUserId, 0);
+  }
   return fixture;
 }
 

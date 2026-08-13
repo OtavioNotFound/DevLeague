@@ -100,22 +100,20 @@ export interface MatchmakingEntry {
 
 export interface MatchSnapshot {
   readonly id: string;
+  readonly currentUserId: string;
   readonly type: 'RANKED_PUBLIC' | 'UNRANKED_PUBLIC' | 'PRIVATE_UNRANKED';
   readonly status: 'COUNTDOWN' | 'ACTIVE' | 'RESOLVING' | 'FINISHED' | 'CANCELLED';
   readonly serverNow: string;
   readonly startsAt: string;
   readonly endsAt: string;
+  readonly lobbyExpiresAt: string | null;
   readonly version: number;
-  readonly problem: {
-    readonly versionId: string;
-    readonly title: string;
-    readonly statementMarkdown: string;
-    readonly constraintsMarkdown: string;
-  };
+  readonly problem: ProblemDetail | null;
   readonly participants: readonly {
     readonly userId: string;
     readonly username: string;
     readonly submissions: number;
+    readonly ready: boolean;
   }[];
   readonly mySubmissions: readonly {
     readonly id: string;

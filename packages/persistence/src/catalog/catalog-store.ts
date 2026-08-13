@@ -153,6 +153,52 @@ export class CatalogStore {
     });
   }
 
+  async getPublicVersion(problemVersionId: string): Promise<CatalogProblemDetail | null> {
+    const [problem] = await this.database<SummaryRow[]>`
+      select p.id, pv.id as version_id, p.slug, pv.title, pv.difficulty,
+             coalesce(array_agg(distinct pcl.category_key)
+               filter (where pcl.category_key is not null), '{}') as categories,
+             coalesce(array_agg(distinct sc.language_key)
+               filter (where sc.language_key is not null), '{}') as languages
+      from devleague.problem p
+      join devleague.problem_version pv on pv.problem_id = p.id
+      left join devleague.problem_category_link pcl on pcl.problem_id = p.id
+      left join devleague.starter_code sc on sc.problem_version_id = pv.id
+      where pv.id = ${problemVersionId}
+      group by p.id, p.slug, pv.id, pv.title, pv.difficulty
+    `;
+    if (!problem) return null;
+
+    const [content] = await this.database<{
+      statementMarkdown: string;
+      constraintsMarkdown: string;
+    }[]>`
+      select statement_markdown, constraints_markdown
+      from devleague.problem_version where id = ${problemVersionId}
+    `;
+    const starters = await this.database<{ languageKey: LanguageKey; source: string }[]>`
+      select language_key, source from devleague.starter_code
+      where problem_version_id = ${problemVersionId}
+    `;
+    const examples = await this.database<{
+      id: string;
+      stdin: string;
+      expectedOutput: string;
+    }[]>`
+      select id, input_text as stdin, expected_output_text as expected_output
+      from devleague.test_case
+      where problem_version_id = ${problemVersionId} and kind = 'PUBLIC'
+      order by ordinal
+    `;
+    return {
+      ...problem,
+      statementMarkdown: content?.statementMarkdown ?? '',
+      constraintsMarkdown: content?.constraintsMarkdown ?? '',
+      starterCode: Object.fromEntries(starters.map((starter) => [starter.languageKey, starter.source])),
+      examples
+    };
+  }
+
   async getExecutionSpec(
     problemVersionId: string,
     kind: 'PUBLIC' | 'PRIVATE'

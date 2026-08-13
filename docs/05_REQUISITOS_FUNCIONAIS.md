@@ -39,7 +39,7 @@ Prioridades: **MUST**, **SHOULD**, **COULD**. Critérios referenciam regras de [
 
 | ID | Pri. | Requisito e aceitação |
 |---|---|---|
-| RF-EDITOR-001 | MUST | Monaco oferece syntax highlighting para quatro linguagens e navegação por teclado documentada. |
+| RF-EDITOR-001 | MUST | Monaco oferece syntax highlighting para cinco linguagens e navegação por teclado documentada. |
 | RF-EDITOR-002 | MUST | Trocar linguagem com confirmação quando puder descartar código; carregar starter correspondente. |
 | RF-EDITOR-003 | MUST | Exibir estados de Run/Submit, console, erros de compilação e vereditos acessíveis. |
 | RF-EDITOR-004 | SHOULD | Salvar rascunho local por usuário/contexto sem misturar partidas. |

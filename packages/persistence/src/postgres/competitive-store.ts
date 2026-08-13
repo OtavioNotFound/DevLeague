@@ -9,6 +9,7 @@ import type {
 import type { TransactionSql } from 'postgres';
 import type { Database } from './database.js';
 import { StoreRuleError } from './store-errors.js';
+import { CatalogStore, type CatalogProblemDetail } from '../catalog/catalog-store.js';
 
 type Transaction = TransactionSql<Record<string, never>>;
 type TerminalVerdict = Exclude<SubmissionVerdict, 'QUEUED' | 'RUNNING'>;
@@ -19,6 +20,7 @@ interface MatchRow {
   status: MatchStatus;
   startsAt: Date;
   endsAt: Date;
+  durationSeconds: number;
   finishedAt: Date | null;
   winnerUserId: string | null;
   resultReason: MatchResultReason | null;
@@ -76,25 +78,30 @@ export interface PersistedMatchResult {
 
 export interface PersistedMatchSnapshot {
   readonly id: string;
+  readonly currentUserId: string;
   readonly type: MatchType;
   readonly status: MatchStatus;
   readonly serverNow: Date;
   readonly startsAt: Date;
   readonly endsAt: Date;
+  readonly lobbyExpiresAt: Date | null;
   readonly version: number;
-  readonly problem: {
-    readonly versionId: string;
-    readonly title: string;
-    readonly statementMarkdown: string;
-    readonly constraintsMarkdown: string;
-  };
+  readonly problem: CatalogProblemDetail | null;
   readonly participants: readonly {
     readonly userId: string;
     readonly username: string;
     readonly submissions: number;
+    readonly ready: boolean;
   }[];
   readonly mySubmissions: readonly AdmittedSubmission[];
   readonly result: PersistedMatchResult | null;
+}
+
+export interface MatchLifecycleProgress {
+  readonly activated: number;
+  readonly reachedDeadline: number;
+  readonly voidedAfterGrace: number;
+  readonly cancelledLobbies: number;
 }
 
 export class CompetitiveStore {
@@ -143,9 +150,11 @@ export class CompetitiveStore {
     readonly participantUserIds: readonly [string, string];
     readonly startsAt: Date;
     readonly durationSeconds?: number;
+    readonly lobbyTimeoutSeconds?: number;
     readonly originKey?: string;
   }): Promise<string> {
     const durationSeconds = input.durationSeconds ?? 600;
+    const lobbyTimeoutSeconds = input.lobbyTimeoutSeconds ?? 120;
     const [firstUserId, secondUserId] = input.participantUserIds;
 
     return this.database.begin(async (transaction) => {
@@ -158,11 +167,12 @@ export class CompetitiveStore {
       const inserted = await transaction<{ id: string }[]>`
         insert into devleague.match (
           id, type, status, problem_version_id, duration_seconds,
-          starts_at, ends_at, rating_policy_version, origin_key
+          starts_at, ends_at, lobby_expires_at, rating_policy_version, origin_key
         ) values (
-          ${input.id}, ${input.type}, 'ACTIVE', ${input.problemVersionId},
+          ${input.id}, ${input.type}, 'COUNTDOWN', ${input.problemVersionId},
           ${durationSeconds}, ${input.startsAt},
           ${new Date(input.startsAt.getTime() + durationSeconds * 1_000)},
+          clock_timestamp() + (${lobbyTimeoutSeconds} * interval '1 second'),
           ${input.type === 'RANKED_PUBLIC' ? 'elo-v1' : null}, ${input.originKey ?? null}
         )
         on conflict (origin_key) where origin_key is not null do nothing
@@ -188,8 +198,8 @@ export class CompetitiveStore {
       `;
       await this.appendOutbox(transaction, {
         aggregateId: input.id,
-        eventType: 'match.started',
-        dedupeKey: `match.started:${input.id}`,
+        eventType: 'match.lobby_created',
+        dedupeKey: `match.lobby_created:${input.id}`,
         payload: {
           matchId: input.id,
           type: input.type,
@@ -197,6 +207,162 @@ export class CompetitiveStore {
         }
       });
       return input.id;
+    });
+  }
+
+  async advanceLifecycle(input: {
+    readonly resolutionGraceSeconds?: number;
+    readonly batchSize?: number;
+  } = {}): Promise<MatchLifecycleProgress> {
+    const resolutionGraceSeconds = input.resolutionGraceSeconds ?? 60;
+    const batchSize = input.batchSize ?? 50;
+    const activatedIds = await this.database.begin(async (transaction) => {
+      const due = await transaction<{ id: string; startsAt: Date }[]>`
+        select m.id, m.starts_at
+        from devleague.match m
+        where m.status = 'COUNTDOWN' and m.starts_at <= clock_timestamp()
+          and not exists (
+            select 1 from devleague.match_participant mp
+            where mp.match_id = m.id and mp.ready_at is null
+          )
+        order by starts_at
+        limit ${batchSize}
+        for update skip locked
+      `;
+      for (const match of due) {
+        await transaction`
+          update devleague.match
+          set status = 'ACTIVE', version = version + 1,
+              updated_at = clock_timestamp()
+          where id = ${match.id} and status = 'COUNTDOWN'
+        `;
+        await this.appendOutbox(transaction, {
+          aggregateId: match.id,
+          eventType: 'match.started',
+          dedupeKey: `match.started:${match.id}`,
+          payload: { matchId: match.id, startsAt: match.startsAt.toISOString() }
+        });
+      }
+      return due.map((match) => match.id);
+    });
+
+    const cancelledLobbies = await this.database.begin(async (transaction) => {
+      const expired = await transaction<{ id: string }[]>`
+        select id from devleague.match
+        where status = 'COUNTDOWN' and lobby_expires_at <= clock_timestamp()
+        order by lobby_expires_at
+        limit ${batchSize}
+        for update skip locked
+      `;
+      for (const match of expired) {
+        await transaction`
+          update devleague.match
+          set status = 'CANCELLED', version = version + 1,
+              updated_at = clock_timestamp()
+          where id = ${match.id} and status = 'COUNTDOWN'
+        `;
+        await transaction`delete from devleague.active_engagement where match_id = ${match.id}`;
+        await this.appendOutbox(transaction, {
+          aggregateId: match.id,
+          eventType: 'match.cancelled',
+          dedupeKey: `match.cancelled:lobby-timeout:${match.id}`,
+          payload: { matchId: match.id, reason: 'LOBBY_TIMEOUT' }
+        });
+      }
+      return expired.length;
+    });
+
+    const deadlineIds = await this.database<{ id: string }[]>`
+      select id from devleague.match
+      where status = 'ACTIVE' and ends_at <= clock_timestamp()
+      order by ends_at
+      limit ${batchSize}
+    `;
+    let reachedDeadline = 0;
+    for (const match of deadlineIds) {
+      try {
+        await this.reachDeadline(match.id);
+        reachedDeadline += 1;
+      } catch (error: unknown) {
+        if (!(error instanceof StoreRuleError) || (
+          error.code !== 'MATCH_ALREADY_TERMINAL' && error.code !== 'MATCH_NOT_ACTIVE'
+        )) throw error;
+      }
+    }
+
+    const staleIds = await this.database<{ id: string }[]>`
+      select id from devleague.match
+      where status = 'RESOLVING'
+        and ends_at + (${resolutionGraceSeconds} * interval '1 second') <= clock_timestamp()
+      order by ends_at
+      limit ${batchSize}
+    `;
+    let voidedAfterGrace = 0;
+    for (const match of staleIds) {
+      if (await this.voidStaleResolvingMatch(match.id, resolutionGraceSeconds)) {
+        voidedAfterGrace += 1;
+      }
+    }
+
+    return { activated: activatedIds.length, reachedDeadline, voidedAfterGrace, cancelledLobbies };
+  }
+
+  async markReady(matchId: string, userId: string, countdownSeconds = 5): Promise<void> {
+    await this.database.begin(async (transaction) => {
+      const match = await this.lockMatch(transaction, matchId);
+      const [participant] = await transaction<{ readyAt: Date | null }[]>`
+        select ready_at from devleague.match_participant
+        where match_id = ${matchId} and user_id = ${userId}
+        for update
+      `;
+      if (!participant) throw new StoreRuleError('NOT_A_PARTICIPANT', 'User is not a match participant.');
+      if (match.status !== 'COUNTDOWN') return;
+      if (participant.readyAt) return;
+
+      const [clock] = await transaction<{ now: Date }[]>`select clock_timestamp() as now`;
+      if (!clock) throw new Error('PostgreSQL did not return its current clock.');
+      const [lobby] = await transaction<{ lobbyExpiresAt: Date | null }[]>`
+        select lobby_expires_at from devleague.match where id = ${matchId}
+      `;
+      if (lobby?.lobbyExpiresAt && lobby.lobbyExpiresAt.getTime() <= clock.now.getTime()) {
+        throw new StoreRuleError('LOBBY_EXPIRED', 'The match lobby has expired.');
+      }
+      await transaction`
+        update devleague.match_participant set ready_at = clock_timestamp()
+        where match_id = ${matchId} and user_id = ${userId}
+      `;
+      await transaction`
+        update devleague.match
+        set version = version + 1, updated_at = clock_timestamp()
+        where id = ${matchId} and status = 'COUNTDOWN'
+      `;
+      await this.appendOutbox(transaction, {
+        aggregateId: matchId,
+        eventType: 'match.participant_ready',
+        dedupeKey: `match.participant_ready:${matchId}:${userId}`,
+        payload: { matchId, userId }
+      });
+      const [ready] = await transaction<CountRow[]>`
+        select count(*)::integer as count from devleague.match_participant
+        where match_id = ${matchId} and ready_at is not null
+      `;
+      if ((ready?.count ?? 0) !== 2) return;
+
+      const startsAt = new Date(clock.now.getTime() + Math.max(0, countdownSeconds) * 1_000);
+      await transaction`
+        update devleague.match
+        set starts_at = ${startsAt},
+            ends_at = ${new Date(startsAt.getTime() + match.durationSeconds * 1_000)},
+            lobby_expires_at = null,
+            version = version + 1, updated_at = clock_timestamp()
+        where id = ${matchId} and status = 'COUNTDOWN'
+      `;
+      await this.appendOutbox(transaction, {
+        aggregateId: matchId,
+        eventType: 'match.countdown_started',
+        dedupeKey: `match.countdown_started:${matchId}`,
+        payload: { matchId, startsAt: startsAt.toISOString() }
+      });
     });
   }
 
@@ -208,6 +374,7 @@ export class CompetitiveStore {
       serverNow: Date;
       startsAt: Date;
       endsAt: Date;
+      lobbyExpiresAt: Date | null;
       version: number;
       problemVersionId: string;
       title: string;
@@ -219,7 +386,7 @@ export class CompetitiveStore {
       winningSubmissionId: string | null;
     }[]>`
       select m.id, m.type, m.status, clock_timestamp() as server_now,
-             m.starts_at, m.ends_at, m.version,
+             m.starts_at, m.ends_at, m.lobby_expires_at, m.version,
              pv.id as problem_version_id, pv.title,
              pv.statement_markdown, pv.constraints_markdown,
              m.finished_at, m.winner_user_id, m.result_reason, m.winning_submission_id
@@ -230,21 +397,28 @@ export class CompetitiveStore {
       where m.id = ${matchId}
     `;
     if (!match) return null;
-
     const participants = await this.database<{
       userId: string;
       username: string;
       submissions: number;
+      ready: boolean;
     }[]>`
-      select mp.user_id, p.username, count(s.id)::integer as submissions
+      select mp.user_id, p.username, count(s.id)::integer as submissions,
+             (mp.ready_at is not null) as ready
       from devleague.match_participant mp
       join devleague.profile p on p.user_id = mp.user_id
       left join devleague.submission s
         on s.match_id = mp.match_id and s.user_id = mp.user_id
       where mp.match_id = ${matchId}
-      group by mp.user_id, mp.slot, p.username
+      group by mp.user_id, mp.slot, p.username, mp.ready_at
       order by mp.slot
     `;
+    const allParticipantsReady = participants.length === 2 && participants.every((participant) => participant.ready);
+    let problem: CatalogProblemDetail | null = null;
+    if (allParticipantsReady || match.status === 'ACTIVE' || match.status === 'RESOLVING' || match.status === 'FINISHED') {
+      problem = await new CatalogStore(this.database).getPublicVersion(match.problemVersionId);
+      if (!problem) throw new Error('A match references a missing problem version.');
+    }
     const submissions = await this.database<SubmissionRow[]>`
       select id, match_id, user_id, admission_seq, request_hash,
              status, verdict, eligible_received_at, finished_at
@@ -270,18 +444,15 @@ export class CompetitiveStore {
 
     return {
       id: match.id,
+      currentUserId: userId,
       type: match.type,
       status: match.status,
       serverNow: match.serverNow,
       startsAt: match.startsAt,
       endsAt: match.endsAt,
+      lobbyExpiresAt: match.lobbyExpiresAt,
       version: match.version,
-      problem: {
-        versionId: match.problemVersionId,
-        title: match.title,
-        statementMarkdown: match.statementMarkdown,
-        constraintsMarkdown: match.constraintsMarkdown
-      },
+      problem,
       participants,
       mySubmissions: submissions.map(toAdmittedSubmission),
       result
@@ -290,7 +461,7 @@ export class CompetitiveStore {
 
   async forfeit(matchId: string, userId: string): Promise<PersistedMatchResult> {
     return this.database.begin(async (transaction) => {
-      const match = await this.lockMatch(transaction, matchId);
+      let match = await this.lockMatch(transaction, matchId);
       const participants = await transaction<{ userId: string }[]>`
         select user_id from devleague.match_participant
         where match_id = ${matchId} order by slot
@@ -301,6 +472,10 @@ export class CompetitiveStore {
       if (match.status === 'FINISHED') return this.toStoredResult(transaction, match);
       if (match.status === 'CANCELLED') {
         throw new StoreRuleError('MATCH_ALREADY_TERMINAL', 'Match is cancelled.');
+      }
+      match = await this.activateIfDue(transaction, match);
+      if (match.status !== 'ACTIVE') {
+        throw new StoreRuleError('MATCH_NOT_ACTIVE', 'The match is not active and cannot be forfeited.');
       }
       const winner = participants.find((participant) => participant.userId !== userId);
       if (!winner) throw new Error('A match requires an opponent.');
@@ -325,10 +500,7 @@ export class CompetitiveStore {
     readonly idempotencyKey: string;
   }): Promise<AdmittedSubmission> {
     return this.database.begin(async (transaction) => {
-      const match = await this.lockMatch(transaction, input.matchId);
-      if (match.status !== 'ACTIVE') {
-        throw new StoreRuleError('MATCH_NOT_ACTIVE', 'The match is not accepting submissions.');
-      }
+      let match = await this.lockMatch(transaction, input.matchId);
 
       const [participant] = await transaction<{ exists: boolean }[]>`
         select true as exists
@@ -365,6 +537,18 @@ export class CompetitiveStore {
         select clock_timestamp() as received_at
       `;
       if (!clock) throw new Error('PostgreSQL did not return its current clock.');
+      const [recentSubmissions] = await transaction<CountRow[]>`
+        select count(*)::integer as count from devleague.submission
+        where match_id = ${input.matchId} and user_id = ${input.userId}
+          and eligible_received_at >= ${new Date(clock.receivedAt.getTime() - 60_000)}
+      `;
+      if ((recentSubmissions?.count ?? 0) >= positiveRateLimit(process.env.MATCH_SUBMIT_RATE_LIMIT_PER_MINUTE, 5)) {
+        throw new StoreRuleError('SUBMISSION_RATE_LIMITED', 'Competitive submission rate limit exceeded.');
+      }
+      match = await this.activateIfDue(transaction, match, clock.receivedAt);
+      if (match.status !== 'ACTIVE') {
+        throw new StoreRuleError('MATCH_NOT_ACTIVE', 'The match is not accepting submissions.');
+      }
       if (clock.receivedAt.getTime() > match.endsAt.getTime()) {
         throw new StoreRuleError(
           'SUBMISSION_DEADLINE_PASSED',
@@ -494,7 +678,12 @@ export class CompetitiveStore {
       if (match.status === 'FINISHED') return this.toStoredResult(transaction, match);
       if (match.status === 'CANCELLED') return null;
 
-      return this.resolveAcceptedCandidate(transaction, match);
+      const result = await this.resolveAcceptedCandidate(transaction, match);
+      if (result || match.status !== 'RESOLVING') return result;
+      if (await this.countPending(transaction, match.id) > 0) return null;
+      return this.finishMatch(transaction, match, {
+        reason: 'DRAW_TIMEOUT', winnerUserId: null, winningSubmissionId: null
+      });
     });
   }
 
@@ -530,6 +719,51 @@ export class CompetitiveStore {
         reason: systemIntegrityCompromised ? 'VOID_SYSTEM' : 'DRAW_TIMEOUT',
         winnerUserId: null,
         winningSubmissionId: null
+      });
+    });
+  }
+
+  private async voidStaleResolvingMatch(
+    matchId: string,
+    resolutionGraceSeconds: number
+  ): Promise<PersistedMatchResult | null> {
+    return this.database.begin(async (transaction) => {
+      const match = await this.lockMatch(transaction, matchId);
+      if (match.status === 'FINISHED' || match.status === 'CANCELLED') return null;
+      if (match.status !== 'RESOLVING') return null;
+
+      const [clock] = await transaction<{ now: Date }[]>`select clock_timestamp() as now`;
+      if (!clock || clock.now.getTime() < match.endsAt.getTime() + resolutionGraceSeconds * 1_000) {
+        return null;
+      }
+
+      const resolved = await this.resolveAcceptedCandidate(transaction, match);
+      if (resolved) return resolved;
+      const pendingCount = await this.countPending(transaction, matchId);
+      if (pendingCount === 0) {
+        return this.finishMatch(transaction, match, {
+          reason: 'DRAW_TIMEOUT', winnerUserId: null, winningSubmissionId: null
+        });
+      }
+
+      await transaction`
+        update devleague.submission
+        set status = 'FINISHED', verdict = 'SYSTEM_ERROR',
+            finished_at = clock_timestamp()
+        where match_id = ${matchId} and status <> 'FINISHED'
+      `;
+      await transaction`
+        update devleague.execution_job ej
+        set status = 'FINISHED', claimed_at = coalesce(claimed_at, clock_timestamp()),
+            finished_at = clock_timestamp(), verdict = 'SYSTEM_ERROR',
+            provider_failure_category = 'MATCH_RESOLUTION_GRACE_EXCEEDED',
+            updated_at = clock_timestamp()
+        from devleague.submission s
+        where ej.match_submission_id = s.id and s.match_id = ${matchId}
+          and ej.status <> 'FINISHED'
+      `;
+      return this.finishMatch(transaction, match, {
+        reason: 'VOID_SYSTEM', winnerUserId: null, winningSubmissionId: null
       });
     });
   }
@@ -714,7 +948,7 @@ export class CompetitiveStore {
 
   private async lockMatch(transaction: Transaction, matchId: string): Promise<MatchRow> {
     const [match] = await transaction<MatchRow[]>`
-      select id, type, status, starts_at, ends_at, finished_at,
+      select id, type, status, starts_at, ends_at, duration_seconds, finished_at,
              winner_user_id, result_reason, winning_submission_id,
              next_submission_seq
       from devleague.match
@@ -723,6 +957,37 @@ export class CompetitiveStore {
     `;
     if (!match) throw new StoreRuleError('MATCH_NOT_FOUND', 'Match does not exist.');
     return match;
+  }
+
+  private async activateIfDue(
+    transaction: Transaction,
+    match: MatchRow,
+    serverNow?: Date
+  ): Promise<MatchRow> {
+    if (match.status !== 'COUNTDOWN') return match;
+    const now = serverNow ?? (await transaction<{ now: Date }[]>`
+      select clock_timestamp() as now
+    `)[0]?.now;
+    if (!now || now.getTime() < match.startsAt.getTime()) return match;
+    const [readiness] = await transaction<CountRow[]>`
+      select count(*)::integer as count from devleague.match_participant
+      where match_id = ${match.id} and ready_at is not null
+    `;
+    if ((readiness?.count ?? 0) !== 2) return match;
+
+    await transaction`
+      update devleague.match
+      set status = 'ACTIVE', version = version + 1,
+          updated_at = clock_timestamp()
+      where id = ${match.id} and status = 'COUNTDOWN'
+    `;
+    await this.appendOutbox(transaction, {
+      aggregateId: match.id,
+      eventType: 'match.started',
+      dedupeKey: `match.started:${match.id}`,
+      payload: { matchId: match.id, startsAt: match.startsAt.toISOString() }
+    });
+    return { ...match, status: 'ACTIVE' };
   }
 
   private async lockRatingAccounts(
@@ -807,4 +1072,9 @@ function toAdmittedSubmission(row: SubmissionRow): AdmittedSubmission {
     status: row.status,
     verdict: row.verdict
   };
+}
+
+function positiveRateLimit(value: string | undefined, fallback: number): number {
+  const parsed = Number(value);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : fallback;
 }

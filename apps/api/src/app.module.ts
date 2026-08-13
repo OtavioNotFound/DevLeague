@@ -5,6 +5,7 @@ import { DatabaseService } from './database/database.service.js';
 import { HealthController } from './health/health.controller.js';
 import { MatchesController } from './matches/matches.controller.js';
 import { MatchesService } from './matches/matches.service.js';
+import { MatchLifecycleService } from './matches/match-lifecycle.service.js';
 import { MatchmakingController } from './matchmaking/matchmaking.controller.js';
 import { MatchmakingService } from './matchmaking/matchmaking.service.js';
 import { MatchmakingLoopService } from './matchmaking/matchmaking-loop.service.js';
@@ -38,6 +39,7 @@ import { UsersService } from './users/users.service.js';
     PracticeService,
     RuntimePolicyService,
     MatchesService,
+    MatchLifecycleService,
     RedisService,
     MatchmakingService,
     MatchmakingLoopService,

@@ -56,7 +56,7 @@ export default function OnboardingPage() {
         <section>
           <p className="eyebrow">ANTES DO PRIMEIRO X1</p><h1>COMPETIÇÃO<br />COMBINADA.</h1>
           <p className="onboarding-lead">A DevLeague mede resolução de problemas em partidas curtas. Não é prova profissional, certificação ou aposta.</p>
-          <div className="principle-list"><div><Swords /><span><strong>Ranked é público</strong><small>Só partidas do matchmaking alteram rating.</small></span></div><div><Scale /><span><strong>Privado é sem rating</strong><small>Desafie amigos sem arriscar pontuação.</small></span></div><div><ShieldCheck /><span><strong>Fair play</strong><small>Sem LLM ou ajuda externa durante o X1.</small></span></div><div><Code2 /><span><strong>Sua linguagem</strong><small>Python, Java, JavaScript ou C++.</small></span></div></div>
+          <div className="principle-list"><div><Swords /><span><strong>Ranked é público</strong><small>Só partidas do matchmaking alteram rating.</small></span></div><div><Scale /><span><strong>Privado é sem rating</strong><small>Desafie amigos sem arriscar pontuação.</small></span></div><div><ShieldCheck /><span><strong>Fair play</strong><small>Sem LLM ou ajuda externa durante o X1.</small></span></div><div><Code2 /><span><strong>Sua linguagem</strong><small>Python, JavaScript, TypeScript, Lua ou C++.</small></span></div></div>
         </section>
         <section className="consent-card">
           <span className="consent-step">IDENTIDADE E CONSENTIMENTO</span><h2>Confirme para continuar</h2><p>Na alpha, reduzimos o escopo jurídico enquanto validamos o X1.</p>

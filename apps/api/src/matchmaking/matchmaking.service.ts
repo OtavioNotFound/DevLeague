@@ -23,6 +23,12 @@ export class MatchmakingService {
     if (process.env.MATCHMAKING_ENABLED !== 'true') {
       throw new ServiceUnavailableException({ code: 'MATCHMAKING_DISABLED' });
     }
+    if (!isCompetitiveExecutionEnabled()) {
+      throw new ServiceUnavailableException({ code: 'COMPETITIVE_EXECUTION_DISABLED' });
+    }
+    if (!isMatchmakingModeEnabled(mode)) {
+      throw new ServiceUnavailableException({ code: 'RANKED_DISABLED' });
+    }
     const me = await this.users.requireEligible(principal);
     if (me.activeMatchId) {
       throw new ConflictException({
@@ -65,4 +71,17 @@ export class MatchmakingService {
       throw new ServiceUnavailableException({ code: 'MATCHMAKING_UNAVAILABLE' });
     }
   }
+}
+
+export function isMatchmakingModeEnabled(
+  mode: MatchmakingMode,
+  environment: Readonly<Record<string, string | undefined>> = process.env
+): boolean {
+  return mode === 'UNRANKED' || environment.RANKED_MATCHMAKING_ENABLED === 'true';
+}
+
+export function isCompetitiveExecutionEnabled(
+  environment: Readonly<Record<string, string | undefined>> = process.env
+): boolean {
+  return environment.COMPETITIVE_EXECUTION_ENABLED === 'true';
 }

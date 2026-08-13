@@ -1,9 +1,8 @@
 import {
-  DeterministicFakeCodeExecutionAdapter,
-  ExecutionWorker,
-  type CodeExecutionPort
+  ExecutionWorker
 } from '@devleague/application';
 import { closeDatabase, createDatabase, ExecutionJobStore } from '@devleague/persistence';
+import { createExecutionAdapter } from './execution-adapter.js';
 
 async function main(): Promise<void> {
   const databaseUrl = process.env.DATABASE_URL;
@@ -29,17 +28,6 @@ async function main(): Promise<void> {
     await closeDatabase(database);
     log('worker.stopped');
   }
-}
-
-function createExecutionAdapter(): CodeExecutionPort {
-  const provider = process.env.JUDGE_PROVIDER;
-  if (provider === 'fake' && process.env.NODE_ENV !== 'production') {
-    const fallback = process.env.FAKE_JUDGE_DEFAULT === 'accepted' ? 'ACCEPTED' : 'SYSTEM_ERROR';
-    return new DeterministicFakeCodeExecutionAdapter(new Map(), fallback);
-  }
-  throw new Error(
-    'No execution provider configured. Only JUDGE_PROVIDER=fake outside production is available.'
-  );
 }
 
 function readPositiveInteger(value: string | undefined, fallback: number): number {

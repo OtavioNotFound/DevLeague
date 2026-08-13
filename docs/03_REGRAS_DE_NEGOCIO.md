@@ -47,10 +47,10 @@ Este documento é a fonte principal das regras competitivas. IDs `RN-*` devem se
 
 ## 6. Linguagem
 
-- **RN-LANG-001:** cada jogador escolhe independentemente Python, Java, JavaScript ou C++ antes ou durante a partida.
+- **RN-LANG-001:** cada jogador escolhe independentemente Python, JavaScript, TypeScript, Lua ou C++ antes ou durante a partida.
 - **RN-LANG-002:** mudança de linguagem troca starter code após confirmação se houver código não vazio; não altera relógio.
 - **RN-LANG-003:** versão do runtime e limites efetivos são resolvidos no servidor.
-- **RN-LANG-004:** o problema MUST ter solução de referência e calibração nas quatro linguagens antes de ser competitivo.
+- **RN-LANG-004:** o problema MUST ter solução de referência e calibração nas cinco linguagens antes de ser competitivo.
 
 ## 7. Relógio e estados
 
@@ -92,7 +92,7 @@ Estados principais: `WAITING_PLAYERS → READY_CHECK → COUNTDOWN → ACTIVE �
 
 ## 11. Rating
 
-- **RN-RATE-001:** rating inicial é 1200 e política tem `algorithm_version`.
+- **RN-RATE-001:** na alpha fechada, rating inicial é 0 e a política tem `algorithm_version`.
 - **RN-RATE-002:** V0.1 usa Elo: `E = 1 / (1 + 10^((Rb-Ra)/400))`; `novo = antigo + K*(S-E)`.
 - **RN-RATE-003:** hipótese inicial `K=32`; empate usa `S=0.5`. Parâmetros são configuração versionada.
 - **RN-RATE-004:** vitória por Accepted ou forfeit em ranked altera rating; draw timeout altera como empate; `VOID_SYSTEM` não altera.

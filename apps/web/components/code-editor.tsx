@@ -20,8 +20,10 @@ const languages: readonly { key: LanguageKey; label: string; runtime: string }[]
 const storagePrefix = 'devleague:editor:';
 let monacoConfigured = false;
 
-export function CodeEditor({ problem, mode = 'practice', matchId, onMatchSubmitted }: { problem: ProblemDetail; mode?: 'practice' | 'match'; matchId?: string; onMatchSubmitted?: () => Promise<void> | void }) {
-  const [language, setLanguage] = useState<LanguageKey>('python');
+export function CodeEditor({ problem, mode = 'practice', matchId, onMatchSubmitted, disabled = false }: { problem: ProblemDetail; mode?: 'practice' | 'match'; matchId?: string; onMatchSubmitted?: () => Promise<void> | void; disabled?: boolean }) {
+  const [language, setLanguage] = useState<LanguageKey>(() =>
+    problem.languages.includes('python') ? 'python' : problem.languages[0] ?? 'python'
+  );
   const [sources, setSources] = useState<Partial<Record<LanguageKey, string>>>(() => ({ ...problem.starterCode }));
   const [state, setState] = useState<'idle' | 'running' | 'accepted' | 'rejected' | 'error'>('idle');
   const [consoleText, setConsoleText] = useState('Execute o código para validar o primeiro exemplo.');
@@ -29,6 +31,7 @@ export function CodeEditor({ problem, mode = 'practice', matchId, onMatchSubmitt
   const executeRef = useRef<((kind: 'runs' | 'submissions') => Promise<void>) | undefined>(undefined);
   const source = sources[language] ?? '';
   const visibleLanguages = languages.filter((item) => problem.languages.includes(item.key));
+  const runtimeAvailable = language !== 'cpp' || publicConfig.experimentalCpp;
 
   useEffect(() => {
     const restored: Partial<Record<LanguageKey, string>> = {};
@@ -40,6 +43,7 @@ export function CodeEditor({ problem, mode = 'practice', matchId, onMatchSubmitt
   }, [problem.versionId]);
 
   async function execute(kind: 'runs' | 'submissions') {
+    if (disabled || state === 'running' || !runtimeAvailable) return;
     setState('running');
     setConsoleText(mode === 'practice' && language === 'cpp'
       ? 'Baixando o Clang/Wasm e compilando no navegador… O primeiro uso pode levar até 3 minutos; os próximos serão mais rápidos.'
@@ -47,18 +51,25 @@ export function CodeEditor({ problem, mode = 'practice', matchId, onMatchSubmitt
         ? 'Carregando o Python/Wasm no navegador… O primeiro uso pode levar alguns segundos.'
         : kind === 'runs' ? 'Executando casos de exemplo…' : 'Enviando para avaliação…');
     try {
-      if (mode === 'practice' && canRunInBrowser(language)) {
-        const example = problem.examples[0];
-        if (!example) throw new Error('este problema ainda não possui caso de exemplo');
-        const local = await runInBrowser({ language, source, stdin: example.stdin });
-        if (!local.ok) {
-          setState('rejected');
-          setConsoleText(`EXECUÇÃO LOCAL\n${local.error}`);
-          return;
+      if (canRunInBrowser(language) && (kind === 'runs' || mode === 'practice')) {
+        const examples = kind === 'runs' ? problem.examples.slice(0, 1) : problem.examples;
+        if (examples.length === 0) throw new Error('este problema ainda não possui caso de exemplo');
+        const results: string[] = [];
+        let passed = 0;
+        for (const [index, example] of examples.entries()) {
+          const local = await runInBrowser({ language, source, stdin: example.stdin });
+          if (!local.ok) {
+            setState('rejected');
+            setConsoleText(`EXECUÇÃO LOCAL · EXEMPLO ${index + 1}\n${local.error}`);
+            return;
+          }
+          const matches = normalizeOutput(local.stdout) === normalizeOutput(example.expectedOutput);
+          if (matches) passed += 1;
+          results.push(`Exemplo ${index + 1}: ${matches ? 'passou' : 'falhou'}\nSaída: ${local.stdout || '(vazia)'}`);
         }
-        const accepted = normalizeOutput(local.stdout) === normalizeOutput(example.expectedOutput);
-        setState(accepted ? 'accepted' : 'rejected');
-        setConsoleText(`${accepted ? 'ACEITO' : 'RESPOSTA INCORRETA'} · validação local no navegador\n\nSaída:\n${local.stdout || '(vazia)'}${kind === 'submissions' ? '\n\nAlpha econômica: resultado validado somente contra o exemplo público e não altera rating.' : ''}`);
+        const allPassed = passed === examples.length;
+        setState(allPassed ? 'accepted' : 'rejected');
+        setConsoleText(`${allPassed ? 'EXEMPLOS PASSARAM' : 'EXEMPLOS NÃO PASSARAM'} · ${passed}/${examples.length}\n\n${results.join('\n\n')}${kind === 'submissions' ? '\n\nValidação local: testa somente exemplos públicos, não é veredito do judge e não altera rating.' : ''}`);
         return;
       }
       if (mode === 'match' && kind === 'submissions' && matchId) {
@@ -111,7 +122,7 @@ export function CodeEditor({ problem, mode = 'practice', matchId, onMatchSubmitt
   };
 
   return (
-    <section className={`editor-panel ${mode === 'match' ? 'match-editor' : ''}`}>
+    <section className={`editor-panel ${mode === 'match' ? 'match-editor' : ''}`} aria-busy={state === 'running'}>
       <header className="editor-toolbar">
         <div className="language-picker">
           <select aria-label="Linguagem" value={language} onChange={(event) => {
@@ -119,7 +130,7 @@ export function CodeEditor({ problem, mode = 'practice', matchId, onMatchSubmitt
             setState('idle');
             setConsoleText('Execute o código para validar o primeiro exemplo.');
           }}>
-            {visibleLanguages.map((item) => <option value={item.key} key={item.key}>{item.label} · {item.runtime}</option>)}
+            {visibleLanguages.map((item) => <option value={item.key} key={item.key} disabled={item.key === 'cpp' && !publicConfig.experimentalCpp}>{item.label} · {item.key === 'cpp' && !publicConfig.experimentalCpp ? 'temporariamente indisponível' : item.runtime}</option>)}
           </select>
           <ChevronDown size={15} aria-hidden="true" />
         </div>
@@ -164,8 +175,8 @@ export function CodeEditor({ problem, mode = 'practice', matchId, onMatchSubmitt
       <footer className="editor-actions">
         <span>Ctrl + Enter executar · Ctrl + S salvar · Ctrl + F buscar</span>
         <div>
-          <button className="button secondary" type="button" disabled={state === 'running'} onClick={() => void execute('runs')}><Play size={16} /> {mode === 'practice' && canRunInBrowser(language) ? 'Executar no navegador' : 'Executar'}</button>
-          <button className="button primary" type="button" disabled={state === 'running'} onClick={() => void execute('submissions')}>{state === 'running' ? <LoaderCircle className="spin" size={17} /> : <Send size={16} />} {mode === 'match' ? 'Enviar solução' : 'Validar localmente'}</button>
+          <button className="button secondary" type="button" disabled={disabled || state === 'running' || !runtimeAvailable} onClick={() => void execute('runs')}><Play size={16} /> {canRunInBrowser(language) ? 'Executar no navegador' : 'Executar'}</button>
+          <button className="button primary" type="button" disabled={disabled || state === 'running' || !runtimeAvailable} onClick={() => void execute('submissions')}>{state === 'running' ? <LoaderCircle className="spin" size={17} /> : <Send size={16} />} {mode === 'match' ? 'Enviar solução' : 'Validar exemplos'}</button>
         </div>
       </footer>
     </section>

@@ -76,7 +76,7 @@ Integrações operacionais concluídas no cliente:
 - conexão Socket.IO autenticada na arena, ressincronização por snapshot e fallback HTTP periódico;
 - resultado derivado do `MatchResult` persistido, inclusive empate, desistência, anulação e ausência de rating em partida unranked.
 
-O modo real é ativado por `NEXT_PUBLIC_DEMO_MODE=false` após preencher `apps/web/.env.local` com base em `apps/web/.env.example`. O comando local é `pnpm dev:web`.
+O modo demonstração só é ativado explicitamente por `NEXT_PUBLIC_DEMO_MODE=true`. Sem essa variável, o frontend falha de forma segura no modo real. Preencha `apps/web/.env.local` com base em `apps/web/.env.example`; o comando local é `pnpm dev:web`.
 
 Validação desta entrega:
 

@@ -84,6 +84,18 @@ export class PracticeStore implements ExecutionJobPort {
         return existing;
       }
 
+      const limit = input.kind === 'RUN'
+        ? positiveRateLimit(process.env.PRACTICE_RUN_RATE_LIMIT_PER_MINUTE, 10)
+        : positiveRateLimit(process.env.PRACTICE_SUBMIT_RATE_LIMIT_PER_MINUTE, 5);
+      const [recentSubmissions] = await transaction<{ count: number }[]>`
+        select count(*)::integer as count from devleague.practice_submission
+        where user_id = ${input.userId} and kind = ${input.kind}
+          and created_at >= clock_timestamp() - interval '1 minute'
+      `;
+      if ((recentSubmissions?.count ?? 0) >= limit) {
+        throw new StoreRuleError('SUBMISSION_RATE_LIMITED', 'Practice submission rate limit exceeded.');
+      }
+
       const [submission] = await transaction<PracticeSubmissionRow[]>`
         insert into devleague.practice_submission (
           id, user_id, problem_version_id, kind, language_key, runtime_version,
@@ -353,4 +365,9 @@ export class PracticeStore implements ExecutionJobPort {
 function truncateOutput(value: string | undefined): string | null {
   if (value === undefined) return null;
   return Buffer.from(value, 'utf8').subarray(0, 64 * 1024).toString('utf8');
+}
+
+function positiveRateLimit(value: string | undefined, fallback: number): number {
+  const parsed = Number(value);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : fallback;
 }

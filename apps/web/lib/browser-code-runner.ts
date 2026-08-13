@@ -1,5 +1,4 @@
 import type { LanguageKey } from '@devleague/contracts';
-import ts from 'typescript';
 
 export type BrowserExecutionResult =
   | { readonly ok: true; readonly stdout: string }
@@ -25,7 +24,7 @@ export async function runInBrowser(input: {
   if (input.language === 'lua') return runLuaInBrowser(input);
 
   const executableInput = input.language === 'typescript'
-    ? transpileTypeScript(input)
+    ? await transpileTypeScript(input)
     : input;
   if ('error' in executableInput) return executableInput;
 
@@ -53,7 +52,8 @@ export async function runInBrowser(input: {
   });
 }
 
-function transpileTypeScript(input: { readonly source: string; readonly stdin: string }): { readonly source: string; readonly stdin: string } | BrowserExecutionResult {
+async function transpileTypeScript(input: { readonly source: string; readonly stdin: string }): Promise<{ readonly source: string; readonly stdin: string } | BrowserExecutionResult> {
+  const ts = await import('typescript');
   const result = ts.transpileModule(input.source, {
     compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.None },
     reportDiagnostics: true
@@ -82,12 +82,10 @@ async function runLuaInBrowser(input: { readonly source: string; readonly stdin:
 }
 
 async function runPythonInBrowser(input: { readonly source: string; readonly stdin: string }): Promise<BrowserExecutionResult> {
-  pythonWorker ??= new Worker(URL.createObjectURL(new Blob([pythonWorkerSource], {
-    type: 'text/javascript'
-  })));
+  pythonWorker ??= new Worker(new URL('../workers/python-runner.worker.ts', import.meta.url), { type: 'module' });
   const result = await runWorker(
     pythonWorker,
-    { ...input, pyodideUrl: `${pyodideCdnUrl}pyodide.js`, pyodideIndexUrl: pyodideCdnUrl },
+    { ...input, indexUrl: pyodideCdnUrl },
     90_000,
     'O Python local demorou mais de 90 segundos para iniciar. Verifique sua conexão e tente novamente.',
     'Não foi possível iniciar o Python no navegador.',
@@ -113,7 +111,7 @@ async function runCppInBrowser(input: { readonly source: string; readonly stdin:
 
 function runWorker(
   worker: Worker,
-  input: { readonly source: string; readonly stdin: string; readonly pyodideUrl?: string; readonly pyodideIndexUrl?: string },
+  input: { readonly source: string; readonly stdin: string; readonly indexUrl?: string },
   timeoutMs: number,
   timeoutMessage: string,
   startupErrorMessage: string,
@@ -151,44 +149,6 @@ self.onmessage = ({ data }) => {
       throw new Error('Módulo não disponível na execução local: ' + name);
     }, sandboxConsole, { stdout: { write } });
     self.postMessage({ ok: true, stdout: output.join('\\n') + (output.length ? '\\n' : '') });
-  } catch (error) {
-    self.postMessage({ ok: false, error: error instanceof Error ? error.message : String(error) });
-  }
-};`;
-
-const pythonWorkerSource = `
-let pyodidePromise;
-
-async function getPyodide() {
-  if (!pyodidePromise) {
-    importScripts(self.__devleaguePyodideUrl);
-    pyodidePromise = loadPyodide({ indexURL: self.__devleaguePyodideIndexUrl });
-  }
-  return pyodidePromise;
-}
-
-self.onmessage = async ({ data }) => {
-  try {
-    self.__devleaguePyodideUrl = data.pyodideUrl;
-    self.__devleaguePyodideIndexUrl = data.pyodideIndexUrl;
-    const pyodide = await getPyodide();
-    pyodide.globals.set('__devleague_source', data.source);
-    pyodide.globals.set('__devleague_stdin', data.stdin);
-    const stdout = await pyodide.runPythonAsync(\`
-import io
-import sys
-
-_stdout = io.StringIO()
-_previous_stdin, _previous_stdout = sys.stdin, sys.stdout
-try:
-    sys.stdin = io.StringIO(__devleague_stdin)
-    sys.stdout = _stdout
-    exec(compile(__devleague_source, '<devleague>', 'exec'), {})
-finally:
-    sys.stdin, sys.stdout = _previous_stdin, _previous_stdout
-_stdout.getvalue()
-    \`);
-    self.postMessage({ ok: true, stdout: String(stdout) });
   } catch (error) {
     self.postMessage({ ok: false, error: error instanceof Error ? error.message : String(error) });
   }

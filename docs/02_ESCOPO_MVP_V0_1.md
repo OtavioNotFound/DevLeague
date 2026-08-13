@@ -10,7 +10,7 @@ Validar se X1 de programação é desejável e repetível. A V0.1 termina quando
 |---|---|
 | Conta | cadastro por e-mail, confirmação quando suportada, login, logout, recuperação, username único, aceite 18+ |
 | Perfil | username, avatar opcional, rating, pico, vitórias/derrotas/empates, win rate e últimas partidas separadas por ranked/unranked |
-| Linguagens | Python, Java, JavaScript (Node.js) e C++ com versões fixadas por ambiente |
+| Linguagens | Python, JavaScript, TypeScript, Lua e C++ com versões fixadas por ambiente |
 | Problemas | 30–50 itens curados; descrição, dificuldade, categoria, exemplos, restrições, testes públicos/privados e limites |
 | Editor | Monaco, seleção de linguagem, starter code, console, executar e submeter |
 | Practice | catálogo simples, detalhe, execução e submissão; sem plano adaptativo |
@@ -54,7 +54,7 @@ O release candidate MUST demonstrar, em ambiente equivalente ao da alpha:
 4. desconexão curta permite retomar estado sem pausar o relógio;
 5. falha de provider não concede vitória/derrota indevida;
 6. código não confiável não toca aplicação, banco, secrets ou rede interna;
-7. Python, Java, JavaScript e C++ passam o conjunto de calibração;
+7. Python, JavaScript, TypeScript, Lua e C++ passam o conjunto de calibração;
 8. exclusão/exportação de conta tem processo definido, ainda que assistido na alpha;
 9. métricas da hipótese central são emitidas e validadas;
 10. testes e critérios de [14_TESTING_STRATEGY.md](14_TESTING_STRATEGY.md) passam.

@@ -15,7 +15,9 @@ export class MatchmakingLoopService implements OnModuleInit, OnModuleDestroy {
   ) {}
 
   onModuleInit(): void {
-    if (process.env.MATCHMAKING_ENABLED !== 'true' || process.env.MATCHMAKING_EMBEDDED !== 'true') return;
+    if (process.env.MATCHMAKING_ENABLED !== 'true' ||
+        process.env.MATCHMAKING_EMBEDDED !== 'true' ||
+        process.env.COMPETITIVE_EXECUTION_ENABLED !== 'true') return;
     this.running = true;
     this.loop = this.run();
   }
@@ -35,7 +37,10 @@ export class MatchmakingLoopService implements OnModuleInit, OnModuleDestroy {
     while (this.running) {
       try {
         let matchId: string | null = null;
-        for (const mode of ['RANKED', 'UNRANKED'] as const) {
+        const modes = process.env.RANKED_MATCHMAKING_ENABLED === 'true'
+          ? (['RANKED', 'UNRANKED'] as const)
+          : (['UNRANKED'] as const);
+        for (const mode of modes) {
           matchId = await coordinator.runOnce(region, mode);
           if (matchId) {
             log('match.created', { matchId, region, mode });

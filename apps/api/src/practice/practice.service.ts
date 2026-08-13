@@ -1,6 +1,8 @@
 import { createHash, randomUUID } from 'node:crypto';
 import {
   ConflictException,
+  HttpException,
+  HttpStatus,
   Injectable,
   NotFoundException,
   UnprocessableEntityException
@@ -64,6 +66,9 @@ export class PracticeService {
       }
       if (error instanceof StoreRuleError && error.code === 'PROBLEM_NOT_AVAILABLE') {
         throw new UnprocessableEntityException({ code: error.code });
+      }
+      if (error instanceof StoreRuleError && error.code === 'SUBMISSION_RATE_LIMITED') {
+        throw new HttpException({ code: error.code, retryAfterSeconds: 60 }, HttpStatus.TOO_MANY_REQUESTS);
       }
       throw error;
     }

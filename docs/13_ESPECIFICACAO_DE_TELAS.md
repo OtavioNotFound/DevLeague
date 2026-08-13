@@ -29,7 +29,7 @@ Explica ranked vs unranked, escolhe linguagens preferidas e permite testar edito
 
 **Hierarquia:** rating e estado → grande CTA `JOGAR` → `Desafiar amigo` → `Praticar` → histórico curto. Sem streak/XP/ligas.  
 **Jogar:** entra no matchmaking ranked após confirmação breve.  
-**Estados:** novo usuário (rating 1200/provisório textual opcional), engagement ativo com `Retomar`, provider degradado desabilita ranked e explica, histórico vazio.  
+**Estados:** novo usuário (rating 0), engagement ativo com `Retomar`, provider degradado desabilita ranked e explica, histórico vazio.
 **Mobile:** CTAs completos; partida/editor não promete mobile.
 
 ## 6. Practice (`/practice`)

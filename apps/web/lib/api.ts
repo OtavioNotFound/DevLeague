@@ -121,9 +121,21 @@ export class DevLeagueApi {
 
   async submitMatch(input: { matchId: string; language: string; source: string }): Promise<SubmissionAcceptedResponse> {
     if (publicConfig.demoMode) return { submissionId: crypto.randomUUID(), status: 'QUEUED', admissionSeq: 4, pollAfterMs: 500 };
+    const idempotencyKey = await submissionIdempotencyKey(input);
     return this.request(`/matches/${input.matchId}/submissions`, {
-      method: 'POST', idempotencyKey: crypto.randomUUID(), body: { language: input.language, source: input.source }
+      method: 'POST', idempotencyKey, body: { language: input.language, source: input.source }
     });
+  }
+
+  async readyMatch(matchId: string): Promise<MatchSnapshot> {
+    if (publicConfig.demoMode) {
+      return {
+        ...demoMatch,
+        id: matchId,
+        participants: demoMatch.participants.map((participant) => ({ ...participant, ready: true }))
+      };
+    }
+    return this.request(`/matches/${matchId}/ready`, { method: 'POST' });
   }
 
   async forfeitMatch(matchId: string): Promise<unknown> {
@@ -176,4 +188,10 @@ function parseJson(value: string): unknown {
   } catch {
     return null;
   }
+}
+
+async function submissionIdempotencyKey(input: { matchId: string; language: string; source: string }): Promise<string> {
+  const payload = new TextEncoder().encode(`${input.matchId}\0${input.language}\0${input.source}`);
+  const digest = await crypto.subtle.digest('SHA-256', payload);
+  return `match_${Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, '0')).join('')}`;
 }

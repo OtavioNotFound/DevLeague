@@ -32,7 +32,7 @@ Incrementos de domínio e persistência concluídos:
 - `apps/api`: liveness `GET /api/v1/health` e readiness PostgreSQL `GET /api/v1/health/ready`;
 - testes automatizados ligados aos IDs de regras/requisitos.
 
-O projeto chegou à etapa de frontend. Ainda não implementados ou não validados: interface web, fluxo visual de autenticação, provider real de judge, rate limit distribuído, fanout realtime multi-instância, convites/lobby privado, conteúdo operacional, infraestrutura real e deploy. O sistema não está pronto para usuários.
+Frontend, autenticação Supabase, API, PostgreSQL, Redis e os deploys iniciais de Web/API já existem. Continuam bloqueantes: provider real de judge, worker de produção, lobby/ready check, rate limit distribuído, fanout realtime multi-instância e calibração editorial/técnica dos problemas. Todo X1 permanece desabilitado por padrão (`COMPETITIVE_EXECUTION_ENABLED=false`); o ranked possui ainda uma segunda trava (`RANKED_MATCHMAKING_ENABLED=false`).
 
 ### Desenvolvimento local
 
@@ -54,6 +54,8 @@ pnpm test:integration
 ```
 
 Os testes de integração são ignorados automaticamente quando `TEST_DATABASE_URL`/`TEST_REDIS_URL` não estão definidos; eles nunca usam as URLs normais como fallback.
+
+Em desenvolvimento, conexões PostgreSQL remotas são bloqueadas por padrão. Prefira PostgreSQL local; `ALLOW_REMOTE_DATABASE=true` é um aceite explícito para um banco remoto de desenvolvimento e nunca deve ser usado como atalho para apontar ferramentas locais à produção. O judge fake exige ainda `ALLOW_FAKE_JUDGE=true` e aceita somente banco em loopback.
 
 Para autenticação, configure um projeto Supabase com chave de assinatura assimétrica e informe `SUPABASE_URL` (ou `SUPABASE_AUTH_ISSUER` e `SUPABASE_JWKS_URL`). As versões vigentes da alpha são definidas por `ALPHA_TERMS_VERSION` e `ALPHA_PRIVACY_VERSION`.
 
@@ -127,4 +129,4 @@ Quando houver divergência, não escolha silenciosamente. Use esta precedência:
 1. Contratar e validar o provider de judge conforme ADR-004 e `10_CODE_JUDGE_SPEC.md`.
 2. Realizar teste técnico (spike descartável) de latência, concorrência, callbacks, limites e retenção com credenciais de avaliação.
 3. Validar termos da alpha, aviso de privacidade, base legal, retenção e processo de direitos do titular com assessoria jurídica brasileira.
-4. Calibrar problemas e limites nas quatro linguagens com soluções de referência.
+4. Calibrar problemas e limites em Python, JavaScript, TypeScript, Lua e C++ com soluções de referência.

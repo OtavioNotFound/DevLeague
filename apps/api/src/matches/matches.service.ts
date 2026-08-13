@@ -1,6 +1,8 @@
 import { createHash, randomUUID } from 'node:crypto';
 import {
   ConflictException,
+  HttpException,
+  HttpStatus,
   Injectable,
   NotFoundException,
   UnprocessableEntityException
@@ -29,6 +31,26 @@ export class MatchesService {
     const snapshot = await this.store.getSnapshot(matchId, me.id);
     if (!snapshot) throw new NotFoundException({ code: 'MATCH_NOT_FOUND' });
     return snapshot;
+  }
+
+  async ready(principal: AuthPrincipal, matchId: string): Promise<PersistedMatchSnapshot> {
+    const me = await this.users.requireEligible(principal);
+    try {
+      await this.store.markReady(matchId, me.id);
+      const snapshot = await this.store.getSnapshot(matchId, me.id);
+      if (!snapshot) throw new NotFoundException({ code: 'MATCH_NOT_FOUND' });
+      return snapshot;
+    } catch (error: unknown) {
+      if (error instanceof StoreRuleError && (
+        error.code === 'MATCH_NOT_FOUND' || error.code === 'NOT_A_PARTICIPANT'
+      )) {
+        throw new NotFoundException({ code: 'MATCH_NOT_FOUND' });
+      }
+      if (error instanceof StoreRuleError && error.code === 'LOBBY_EXPIRED') {
+        throw new UnprocessableEntityException({ code: error.code });
+      }
+      throw error;
+    }
   }
 
   async submit(principal: AuthPrincipal, input: {
@@ -71,6 +93,9 @@ export class MatchesService {
       )) {
         throw new NotFoundException({ code: 'MATCH_NOT_FOUND' });
       }
+      if (error instanceof StoreRuleError && error.code === 'SUBMISSION_RATE_LIMITED') {
+        throw new HttpException({ code: error.code, retryAfterSeconds: 60 }, HttpStatus.TOO_MANY_REQUESTS);
+      }
       throw error;
     }
   }
@@ -84,6 +109,9 @@ export class MatchesService {
         error.code === 'MATCH_NOT_FOUND' || error.code === 'NOT_A_PARTICIPANT'
       )) {
         throw new NotFoundException({ code: 'MATCH_NOT_FOUND' });
+      }
+      if (error instanceof StoreRuleError && error.code === 'MATCH_NOT_ACTIVE') {
+        throw new UnprocessableEntityException({ code: error.code });
       }
       throw error;
     }

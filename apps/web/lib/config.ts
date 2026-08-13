@@ -5,5 +5,6 @@ export const publicConfig = {
   supabasePublishableKey: process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY,
   termsVersion: process.env.NEXT_PUBLIC_TERMS_VERSION ?? 'v0.1-alpha',
   privacyVersion: process.env.NEXT_PUBLIC_PRIVACY_VERSION ?? 'v0.1-alpha',
-  demoMode: process.env.NEXT_PUBLIC_DEMO_MODE !== 'false'
+  experimentalCpp: process.env.NEXT_PUBLIC_EXPERIMENTAL_CPP === 'true',
+  demoMode: process.env.NEXT_PUBLIC_DEMO_MODE === 'true'
 } as const;

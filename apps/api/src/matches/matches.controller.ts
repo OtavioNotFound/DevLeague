@@ -36,6 +36,13 @@ export class MatchesController {
     return { status: snapshot.status, result: snapshot.result };
   }
 
+  @Post(':id/ready')
+  @HttpCode(200)
+  ready(@CurrentPrincipal() principal: AuthPrincipal, @Param('id') matchId: string) {
+    requireUuid(matchId, 'INVALID_MATCH_ID');
+    return this.matches.ready(principal, matchId);
+  }
+
   @Post(':id/submissions')
   @HttpCode(202)
   async submit(

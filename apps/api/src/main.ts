@@ -10,6 +10,13 @@ async function bootstrap(): Promise<void> {
   app.setGlobalPrefix('api/v1');
   app.enableShutdownHooks();
   app.use(requestIdMiddleware);
+  app.use((_request: unknown, response: { setHeader(name: string, value: string): void }, next: () => void) => {
+    response.setHeader('X-Content-Type-Options', 'nosniff');
+    response.setHeader('X-Frame-Options', 'DENY');
+    response.setHeader('Referrer-Policy', 'no-referrer');
+    response.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=(), payment=()');
+    next();
+  });
   app.useGlobalFilters(new ApiExceptionFilter());
   app.enableCors({
     origin: (process.env.APP_ORIGIN ?? 'http://localhost:3000')

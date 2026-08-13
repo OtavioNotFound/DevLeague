@@ -16,7 +16,7 @@ Princípios:
 ## 2. Escopo V0.1
 
 - Código single-file e stdin/stdout.
-- Python, Java, JavaScript/Node.js e C++ em versões fixas.
+- Python, JavaScript/Node.js, TypeScript, Lua e C++ em versões fixas.
 - `Run`: input/testes públicos; resposta pode incluir stdout.
 - `Submit`: todos os testes privados; cliente recebe apenas veredito agregado e diagnóstico seguro.
 - Sem pacotes externos, internet, multi-file, Docker do usuário, arquivos persistentes ou sessão interativa.
@@ -82,7 +82,7 @@ Provider MUST suportar ou contratualmente impor:
 - isolamento entre tenants/jobs;
 - rate/concurrency/backpressure observáveis.
 
-Valores por linguagem/problema são calibrados. Sugestão de ponto inicial, não aprovação: CPU 1–2 s por caso, wall 2–5× CPU, memória 256 MB (mais para JVM se necessário), source 64 KiB, output 64 KiB e poucos processos. Publicar problema somente depois de benchmark p50/p95 e margens nas quatro linguagens.
+Valores por linguagem/problema são calibrados. Sugestão de ponto inicial, não aprovação: CPU 1–2 s por caso, wall 2–5× CPU, memória 256 MB, source 64 KiB, output 64 KiB e poucos processos. Publicar problema somente depois de benchmark p50/p95 e margens nas cinco linguagens.
 
 ## 6. Testes e veredito
 
@@ -150,7 +150,7 @@ Desclassificadores: rede não desabilitável; retenção/uso de source incompat�
 1. Preço por request, tempo, crédito, slot ou pacote? Há mínimo, overage e cobrança de failed/retry/test case?
 2. Burst, concurrent executions, queue, rate limits e processo de aumento?
 3. Regiões, p50/p95 observados, SLA e créditos por indisponibilidade?
-4. Versões exatas das quatro linguagens e política de atualização/depreciação?
+4. Versões exatas das cinco linguagens e política de atualização/depreciação?
 5. Limites configuráveis e isolamento de compile vs run?
 6. Rede, syscall, filesystem, processes, output e limpeza entre jobs?
 7. Source/input/output são persistidos, logados, usados para treinamento ou acessados por suporte? Por quanto tempo?
@@ -163,7 +163,7 @@ Desclassificadores: rede não desabilitável; retenção/uso de source incompat�
 
 Executar com cada finalista:
 
-- 100+ soluções golden/WA/CE/RE/TLE/MLE nas quatro linguagens;
+- 100+ soluções golden/WA/CE/RE/TLE/MLE nas cinco linguagens;
 - fork/process bomb, loop, output bomb, filesystem, tentativa de rede/DNS e leitura de ambiente;
 - burst equivalente a 20 submits/s e 100 partidas simultâneas;
 - callback duplicado, atrasado, inválido e fora de ordem;
@@ -180,4 +180,3 @@ Seleção final exige ADR-004 atualizada de `Proposed` para `Accepted`.
 - [JDoodle Compiler API](https://www.jdoodle.com/docs/compiler-apis/jdoodle-api-quickstart/rest-apis), [credits](https://www.jdoodle.com/docs/compiler-apis/api-credits), [timeouts](https://www.jdoodle.com/docs/compiler-apis/api-timeout-errors/), [languages](https://www.jdoodle.com/docs/compiler-apis/supported-languages-versions)
 
 Links e condições comerciais devem ser revalidados na contratação.
-

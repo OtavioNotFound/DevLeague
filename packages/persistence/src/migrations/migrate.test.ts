@@ -81,10 +81,30 @@ describe('match execution migration', () => {
   });
 });
 
+describe('initial catalog safety migration', () => {
+  it('RN-PROB-007 removes solved starters and disables uncalibrated competitive versions', async () => {
+    const sql = await readFile(new URL('./0012_content_safety.sql', import.meta.url), 'utf8');
+
+    expect(sql).toContain('set competitive_eligible = false');
+    expect(sql).toContain('Escreva sua solução aqui');
+    expect(sql).not.toContain('print(a + b)');
+  });
+});
+
 describe('matchmaking origin migration', () => {
   it('RF-MM-002 makes pair-to-match creation idempotent', async () => {
     const sql = await readFile(new URL('./0006_matchmaking_origin.sql', import.meta.url), 'utf8');
     expect(sql).toContain('match_origin_key_unique');
+  });
+});
+
+describe('competitive lobby migration', () => {
+  it('requires explicit readiness without exposing a second source of match state', async () => {
+    const sql = await readFile(new URL('./0013_match_ready_check.sql', import.meta.url), 'utf8');
+
+    expect(sql).toContain('lobby_expires_at timestamptz');
+    expect(sql).toContain('ready_at timestamptz');
+    expect(sql).toContain('match_lobby_expiry_idx');
   });
 });
 

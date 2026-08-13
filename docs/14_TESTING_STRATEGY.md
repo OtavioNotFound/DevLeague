@@ -46,7 +46,7 @@ Testes contra PostgreSQL real em container/ambiente isolado:
 
 Suite comum executada contra fake e cada candidato:
 
-- hello/golden nas quatro linguagens;
+- hello/golden nas cinco linguagens;
 - CE, WA, RE, TLE, MLE e output limit;
 - Unicode/PT-BR, newline/whitespace e floating tolerance;
 - callback/polling duplicado, atrasado, 429, 5xx e payload desconhecido;

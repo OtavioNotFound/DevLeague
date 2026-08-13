@@ -13,7 +13,7 @@ export default function LandingPage() {
             <h1>PROGRAMAÇÃO<br />É MELHOR <span>NO X1.</span></h1>
             <p className="hero-lead">Um problema. Dois devs. Dez minutos. Vença com lógica, não com sorte.</p>
             <div className="hero-actions"><Link className="button primary large" href="/signup">Começar agora <ArrowRight size={19} /></Link><Link className="button ghost large" href="/practice">Explorar problemas</Link></div>
-            <div className="language-strip"><span>PYTHON</span><span>JAVA</span><span>JAVASCRIPT</span><span>C++</span></div>
+            <div className="language-strip"><span>PYTHON</span><span>JAVASCRIPT</span><span>TYPESCRIPT</span><span>LUA</span><span>C++</span></div>
           </div>
           <div className="duel-visual" aria-label="Demonstração de uma partida em andamento">
             <div className="duel-top"><span className="live-dot">AO VIVO</span><span className="duel-clock">06:42</span><span className="tag ranked">RANQUEADA</span></div>
@@ -22,7 +22,7 @@ export default function LandingPage() {
             <div className="duel-status"><CheckCircle2 size={17} /><span>2/4 casos passaram</span><span className="status-line"><i /></span></div>
           </div>
         </section>
-        <section className="proof-bar"><div><strong>10 min</strong><span>por partida</span></div><div><strong>4</strong><span>linguagens</span></div><div><strong>100%</strong><span>foco em lógica</span></div><div><strong>0</strong><span>pay-to-win</span></div></section>
+        <section className="proof-bar"><div><strong>10 min</strong><span>por partida</span></div><div><strong>5</strong><span>linguagens</span></div><div><strong>100%</strong><span>foco em lógica</span></div><div><strong>0</strong><span>pay-to-win</span></div></section>
         <section id="como-funciona" className="how-section"><p className="eyebrow">O LOOP CENTRAL</p><h2>DA FILA AO VEREDITO.</h2><div className="how-grid">
           <article><span>01</span><Swords /><h3>Encontre um rival</h3><p>Matchmaking por rating encontra alguém no seu nível.</p></article>
           <article><span>02</span><TimerReset /><h3>Resolva no tempo</h3><p>Mesmo problema, linguagens independentes e relógio justo.</p></article>

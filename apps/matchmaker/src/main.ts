@@ -10,6 +10,9 @@ async function main(): Promise<void> {
   if (process.env.MATCHMAKING_ENABLED !== 'true') {
     throw new Error('MATCHMAKING_ENABLED=true is required to start the matchmaker.');
   }
+  if (process.env.COMPETITIVE_EXECUTION_ENABLED !== 'true') {
+    throw new Error('COMPETITIVE_EXECUTION_ENABLED=true is required to start the matchmaker.');
+  }
   const databaseUrl = process.env.DATABASE_URL;
   const redisUrl = process.env.REDIS_URL;
   if (!databaseUrl || !redisUrl) throw new Error('DATABASE_URL and REDIS_URL are required.');
@@ -30,7 +33,10 @@ async function main(): Promise<void> {
   try {
     while (running) {
       let matchId: string | null = null;
-      for (const mode of ['RANKED', 'UNRANKED'] as const) {
+      const modes = process.env.RANKED_MATCHMAKING_ENABLED === 'true'
+        ? (['RANKED', 'UNRANKED'] as const)
+        : (['UNRANKED'] as const);
+      for (const mode of modes) {
         matchId = await coordinator.runOnce(region, mode);
         if (matchId) {
           log('match.created', { matchId, region, mode });

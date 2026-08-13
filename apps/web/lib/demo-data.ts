@@ -52,20 +52,17 @@ export const demoProblem: ProblemDetail = {
 
 export const demoMatch: MatchSnapshot = {
   id: '019ff31b-6ec5-72d0-a306-1619d8c33cc7',
+  currentUserId: demoMe.id,
   type: 'RANKED_PUBLIC', status: 'ACTIVE',
   serverNow: new Date().toISOString(),
   startsAt: new Date(Date.now() - 184_000).toISOString(),
   endsAt: new Date(Date.now() + 416_000).toISOString(),
+  lobbyExpiresAt: null,
   version: 18,
-  problem: {
-    versionId: demoProblem.versionId,
-    title: demoProblem.title,
-    statementMarkdown: demoProblem.statementMarkdown,
-    constraintsMarkdown: demoProblem.constraintsMarkdown
-  },
+  problem: demoProblem,
   participants: [
-    { userId: demoMe.id, username: demoMe.username, submissions: 2 },
-    { userId: '019ff31b-6ec5-72d0-a306-1619d8c33cd7', username: 'bytebruna', submissions: 1 }
+    { userId: demoMe.id, username: demoMe.username, submissions: 2, ready: true },
+    { userId: '019ff31b-6ec5-72d0-a306-1619d8c33cd7', username: 'bytebruna', submissions: 1, ready: true }
   ],
   mySubmissions: [
     { id: 'sub-1', admissionSeq: 1, status: 'FINISHED', verdict: 'WRONG_ANSWER' },
