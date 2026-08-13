@@ -17,6 +17,7 @@ Este documento é a fonte principal das regras competitivas. IDs `RN-*` devem se
 - **RN-MATCH-003:** histórico e métricas separam ranked de unranked.
 - **RN-MATCH-004:** uma revanche privada cria nova partida unranked com novo problema elegível quando possível.
 - **RN-MATCH-005:** revanche de uma partida pública é privada/unranked na V0.1; voltar a jogar ranked exige reentrar no matchmaking.
+- **RN-MATCH-006:** quando `ALPHA_BROWSER_MATCHES_UNRANKED=true`, somente `UNRANKED_PUBLIC` pode usar problemas publicados visíveis no treino e encerrar por validação Wasm dos exemplos públicos. O resultado é explicitamente não verificado, nunca altera rating e continua usando o relógio e o menor `admission_seq` atribuídos pelo PostgreSQL; ranked e partidas privadas não aceitam esse caminho.
 
 ## 3. Criação e lobby
 

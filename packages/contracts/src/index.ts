@@ -130,6 +130,7 @@ export interface MatchResult {
   readonly winnerUserId: string | null;
   readonly winningSubmissionId: string | null;
   readonly finishedAt: string;
+  readonly verification: 'AUTHORITATIVE_JUDGE' | 'BROWSER_PUBLIC_EXAMPLES' | 'SERVER_RULE';
   readonly ratingChanges: readonly {
     readonly userId: string;
     readonly before: number;

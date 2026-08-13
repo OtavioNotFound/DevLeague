@@ -12,12 +12,18 @@ export class RankedMatchFactory implements MatchCreationPort {
   }
 
   async createMatch(pair: MatchmakingPair): Promise<string> {
+    const casualBrowserMatch = pair.mode === 'UNRANKED' &&
+      process.env.ALPHA_BROWSER_MATCHES_UNRANKED === 'true';
     const [problem] = await this.database<{ versionId: string }[]>`
       select pv.id as version_id
       from devleague.problem p
       join lateral (
         select selected.* from devleague.problem_version selected
-        where selected.problem_id = p.id and selected.competitive_eligible = true
+        where selected.problem_id = p.id
+          and (
+            (${casualBrowserMatch} and selected.practice_visible = true)
+            or (not ${casualBrowserMatch} and selected.competitive_eligible = true)
+          )
         order by selected.version_number desc limit 1
       ) pv on true
       where p.status = 'PUBLISHED'

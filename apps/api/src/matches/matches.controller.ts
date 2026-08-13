@@ -18,6 +18,10 @@ interface MatchSubmissionBody {
   readonly source?: unknown;
 }
 
+interface BrowserMatchSubmissionBody extends MatchSubmissionBody {
+  readonly publicExampleIds?: unknown;
+}
+
 @Controller('matches')
 @UseGuards(JwtAuthGuard)
 export class MatchesController {
@@ -61,12 +65,57 @@ export class MatchesController {
     };
   }
 
+  @Post(':id/browser-submissions')
+  @HttpCode(202)
+  async submitBrowserVerified(
+    @CurrentPrincipal() principal: AuthPrincipal,
+    @Param('id') matchId: string,
+    @Headers('idempotency-key') idempotencyKey: string | undefined,
+    @Body() body: BrowserMatchSubmissionBody
+  ) {
+    const input = validateBrowserMatchSubmissionInput(matchId, idempotencyKey, body);
+    const submission = await this.matches.submitBrowserVerified(principal, input);
+    return {
+      submissionId: submission.id,
+      status: submission.status,
+      admissionSeq: submission.admissionSeq,
+      pollAfterMs: 0,
+      verification: 'BROWSER_PUBLIC_EXAMPLES' as const
+    };
+  }
+
   @Post(':id/forfeit')
   @HttpCode(200)
   forfeit(@CurrentPrincipal() principal: AuthPrincipal, @Param('id') matchId: string) {
     requireUuid(matchId, 'INVALID_MATCH_ID');
     return this.matches.forfeit(principal, matchId);
   }
+}
+
+export function validateBrowserMatchSubmissionInput(
+  matchId: string,
+  idempotencyKey: string | undefined,
+  body: BrowserMatchSubmissionBody
+): {
+  readonly matchId: string;
+  readonly language: 'python' | 'javascript' | 'typescript' | 'lua' | 'cpp';
+  readonly source: string;
+  readonly publicExampleIds: readonly string[];
+  readonly idempotencyKey: string;
+} {
+  const base = validateMatchSubmissionInput(matchId, idempotencyKey, body);
+  if (base.language === 'java') {
+    throw new BadRequestException({ code: 'BROWSER_LANGUAGE_UNSUPPORTED' });
+  }
+  if (!Array.isArray(body.publicExampleIds) || body.publicExampleIds.length === 0 ||
+      body.publicExampleIds.length > 32 || !body.publicExampleIds.every(isUuid)) {
+    throw new BadRequestException({ code: 'INVALID_PUBLIC_EXAMPLES' });
+  }
+  return {
+    ...base,
+    language: base.language,
+    publicExampleIds: [...body.publicExampleIds] as string[]
+  };
 }
 
 export function validateMatchSubmissionInput(
@@ -96,9 +145,13 @@ export function validateMatchSubmissionInput(
 }
 
 function requireUuid(value: string, code: string): void {
-  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value)) {
+  if (!isUuid(value)) {
     throw new BadRequestException({ code });
   }
+}
+
+function isUuid(value: unknown): value is string {
+  return typeof value === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
 }
 
 function isLanguage(value: unknown): value is 'python' | 'java' | 'javascript' | 'typescript' | 'lua' | 'cpp' {

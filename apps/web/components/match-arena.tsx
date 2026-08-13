@@ -135,7 +135,7 @@ export function MatchArena({ initialMatch }: { initialMatch: MatchSnapshot }) {
       ) : (
         <div className="arena-workspace">
           <article className="arena-problem"><p className="eyebrow">DESAFIO DO X1</p><h1>{match.problem.title}</h1><ProblemMarkdown value={match.problem.statementMarkdown} /><h2>Limites</h2><ProblemMarkdown value={match.problem.constraintsMarkdown} /><h2>Seus envios</h2><div className="submission-list">{match.mySubmissions.map((submission) => <div key={submission.id}><span>#{submission.admissionSeq}</span><small>{submission.status}</small>{submission.verdict && <VerdictBadge verdict={submission.verdict} />}</div>)}</div></article>
-          <CodeEditor problem={match.problem} mode="match" matchId={match.id} onMatchSubmitted={refreshAfterSubmit} disabled={match.status !== 'ACTIVE'} />
+          <CodeEditor problem={match.problem} mode="match" matchId={match.id} onMatchSubmitted={refreshAfterSubmit} browserCompetition={match.type === 'UNRANKED_PUBLIC'} disabled={match.status !== 'ACTIVE'} />
         </div>
       )}
     </div>

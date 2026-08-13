@@ -73,6 +73,7 @@ export interface PersistedMatchResult {
   readonly winnerUserId: string | null;
   readonly winningSubmissionId: string | null;
   readonly finishedAt: Date;
+  readonly verification: 'AUTHORITATIVE_JUDGE' | 'BROWSER_PUBLIC_EXAMPLES' | 'SERVER_RULE';
   readonly ratingChanges: readonly PersistedRatingChange[];
 }
 
@@ -432,12 +433,17 @@ export class CompetitiveStore {
         select user_id, rating_before as before, delta, rating_after as after
         from devleague.rating_history where match_id = ${matchId} order by user_id
       `;
+      const verification = await this.resultVerification(
+        this.database,
+        match.winningSubmissionId
+      );
       result = {
         matchId,
         reason: match.resultReason,
         winnerUserId: match.winnerUserId,
         winningSubmissionId: match.winningSubmissionId,
         finishedAt: match.finishedAt,
+        verification,
         ratingChanges: changes
       };
     }
@@ -609,6 +615,143 @@ export class CompetitiveStore {
         }
       });
 
+      return toAdmittedSubmission(submission);
+    });
+  }
+
+  async admitBrowserVerifiedSubmission(input: {
+    readonly id: string;
+    readonly matchId: string;
+    readonly userId: string;
+    readonly languageKey: 'python' | 'javascript' | 'typescript' | 'lua' | 'cpp';
+    readonly runtimeVersion: string;
+    readonly source: string;
+    readonly sourceSha256: string;
+    readonly publicExampleIds: readonly string[];
+    readonly requestHash: string;
+    readonly idempotencyKey: string;
+  }): Promise<AdmittedSubmission> {
+    return this.database.begin(async (transaction) => {
+      let match = await this.lockMatch(transaction, input.matchId);
+      if (match.type !== 'UNRANKED_PUBLIC') {
+        throw new StoreRuleError(
+          'BROWSER_VERIFICATION_NOT_ALLOWED',
+          'Browser verification is restricted to public unranked matches.'
+        );
+      }
+
+      const [participant] = await transaction<{ exists: boolean }[]>`
+        select true as exists
+        from devleague.match_participant
+        where match_id = ${input.matchId} and user_id = ${input.userId}
+      `;
+      if (!participant) {
+        throw new StoreRuleError('NOT_A_PARTICIPANT', 'User is not a match participant.');
+      }
+
+      const [existing] = await transaction<SubmissionRow[]>`
+        select id, match_id, user_id, admission_seq, request_hash,
+               status, verdict, eligible_received_at, finished_at
+        from devleague.submission
+        where id = ${input.id}
+           or (
+             match_id = ${input.matchId}
+             and user_id = ${input.userId}
+             and idempotency_key = ${input.idempotencyKey}
+           )
+        limit 1
+      `;
+      if (existing) {
+        if (existing.requestHash !== input.requestHash) {
+          throw new StoreRuleError(
+            'IDEMPOTENCY_KEY_REUSED',
+            'The idempotency key was reused with a different request.'
+          );
+        }
+        return toAdmittedSubmission(existing);
+      }
+
+      const [problem] = await transaction<{ exampleIds: string[] }[]>`
+        select coalesce(
+          array_agg(tc.id::text order by tc.ordinal)
+            filter (where tc.id is not null),
+          array[]::text[]
+        ) as example_ids
+        from devleague.match m
+        left join devleague.test_case tc
+          on tc.problem_version_id = m.problem_version_id and tc.kind = 'PUBLIC'
+        where m.id = ${input.matchId}
+        group by m.id
+      `;
+      if (!problem || problem.exampleIds.length === 0 ||
+          !sameOrderedValues(problem.exampleIds, input.publicExampleIds)) {
+        throw new StoreRuleError(
+          'PUBLIC_EXAMPLES_STALE',
+          'The browser result does not cover the current public examples.'
+        );
+      }
+
+      const [clock] = await transaction<{ receivedAt: Date }[]>`
+        select clock_timestamp() as received_at
+      `;
+      if (!clock) throw new Error('PostgreSQL did not return its current clock.');
+      const [recentSubmissions] = await transaction<CountRow[]>`
+        select count(*)::integer as count from devleague.submission
+        where match_id = ${input.matchId} and user_id = ${input.userId}
+          and eligible_received_at >= ${new Date(clock.receivedAt.getTime() - 60_000)}
+      `;
+      if ((recentSubmissions?.count ?? 0) >= positiveRateLimit(process.env.MATCH_SUBMIT_RATE_LIMIT_PER_MINUTE, 5)) {
+        throw new StoreRuleError('SUBMISSION_RATE_LIMITED', 'Casual submission rate limit exceeded.');
+      }
+      match = await this.activateIfDue(transaction, match, clock.receivedAt);
+      if (match.status !== 'ACTIVE') {
+        throw new StoreRuleError('MATCH_NOT_ACTIVE', 'The match is not accepting submissions.');
+      }
+      if (clock.receivedAt.getTime() > match.endsAt.getTime()) {
+        throw new StoreRuleError(
+          'SUBMISSION_DEADLINE_PASSED',
+          'PostgreSQL admitted the submission after the match deadline.'
+        );
+      }
+
+      const admissionSeq = match.nextSubmissionSeq;
+      await transaction`
+        update devleague.match
+        set next_submission_seq = next_submission_seq + 1,
+            version = version + 1,
+            updated_at = clock_timestamp()
+        where id = ${input.matchId}
+      `;
+      const [submission] = await transaction<SubmissionRow[]>`
+        insert into devleague.submission (
+          id, match_id, user_id, admission_seq, language_key, runtime_version,
+          source_ref, source_text, source_sha256, request_hash, idempotency_key,
+          status, verdict, eligible_received_at, finished_at
+        ) values (
+          ${input.id}, ${input.matchId}, ${input.userId}, ${admissionSeq},
+          ${input.languageKey}, ${input.runtimeVersion},
+          ${`browser-wasm:public-examples:${input.publicExampleIds.length}`},
+          ${input.source}, ${input.sourceSha256}, ${input.requestHash}, ${input.idempotencyKey},
+          'FINISHED', 'ACCEPTED', ${clock.receivedAt}, ${clock.receivedAt}
+        )
+        returning id, match_id, user_id, admission_seq, request_hash,
+                  status, verdict, eligible_received_at, finished_at
+      `;
+      if (!submission) throw new Error('Submission insert returned no row.');
+
+      await this.appendOutbox(transaction, {
+        aggregateId: input.matchId,
+        eventType: 'submission.browser_examples_accepted',
+        dedupeKey: `submission.browser_examples_accepted:${input.id}`,
+        payload: {
+          matchId: input.matchId,
+          submissionId: input.id,
+          userId: input.userId,
+          admissionSeq,
+          verification: 'BROWSER_PUBLIC_EXAMPLES'
+        }
+      });
+      await this.resolveAcceptedCandidate(transaction, match);
       return toAdmittedSubmission(submission);
     });
   }
@@ -919,6 +1062,7 @@ export class CompetitiveStore {
       winnerUserId: result.winnerUserId,
       winningSubmissionId: result.winningSubmissionId,
       finishedAt,
+      verification: await this.resultVerification(transaction, result.winningSubmissionId),
       ratingChanges: changes
     };
   }
@@ -942,8 +1086,22 @@ export class CompetitiveStore {
       winnerUserId: match.winnerUserId,
       winningSubmissionId: match.winningSubmissionId,
       finishedAt: match.finishedAt,
+      verification: await this.resultVerification(transaction, match.winningSubmissionId),
       ratingChanges: [...changes]
     };
+  }
+
+  private async resultVerification(
+    sql: Database | Transaction,
+    winningSubmissionId: string | null
+  ): Promise<PersistedMatchResult['verification']> {
+    if (!winningSubmissionId) return 'SERVER_RULE';
+    const [submission] = await sql<{ sourceRef: string }[]>`
+      select source_ref from devleague.submission where id = ${winningSubmissionId}
+    `;
+    return submission?.sourceRef.startsWith('browser-wasm:')
+      ? 'BROWSER_PUBLIC_EXAMPLES'
+      : 'AUTHORITATIVE_JUDGE';
   }
 
   private async lockMatch(transaction: Transaction, matchId: string): Promise<MatchRow> {
@@ -1077,4 +1235,8 @@ function toAdmittedSubmission(row: SubmissionRow): AdmittedSubmission {
 function positiveRateLimit(value: string | undefined, fallback: number): number {
   const parsed = Number(value);
   return Number.isInteger(parsed) && parsed > 0 ? parsed : fallback;
+}
+
+function sameOrderedValues(left: readonly string[], right: readonly string[]): boolean {
+  return left.length === right.length && left.every((value, index) => value === right[index]);
 }

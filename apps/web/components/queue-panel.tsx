@@ -54,9 +54,9 @@ export function QueuePanel({ mode }: { mode: 'RANKED' | 'UNRANKED' }) {
     <div className="queue-card">
       <div className="radar" aria-hidden="true"><span><Swords size={30} /></span><i /><i /></div>
       <p className="eyebrow">{mode === 'RANKED' ? 'MATCHMAKING RANQUEADO' : 'MATCHMAKING SEM RATING'}</p><h1>{phase === 'error' ? 'FILA INDISPONÍVEL.' : 'PROCURANDO RIVAL.'}</h1>
-      <p className="queue-lead">{phase === 'error' ? queueErrorMessage(errorCode) : 'Buscando alguém próximo do seu rating na região Brasil.'}</p>
+      <p className="queue-lead">{phase === 'error' ? queueErrorMessage(errorCode) : 'Buscando um rival para uma partida casual, sem alteração de rating.'}</p>
       {phase !== 'error' && <><span className="queue-time">{String(Math.floor(seconds / 60)).padStart(2, '0')}:{String(seconds % 60).padStart(2, '0')}</span><div className="searching-state"><LoaderCircle className="spin" size={16} /> {phase === 'joining' ? 'Entrando na fila…' : 'Expandindo faixa aos poucos'}</div></>}
-      <div className="queue-rules"><span><Radio size={17} /><b>Região</b><small>São Paulo</small></span><span><UsersRound size={17} /><b>Nível</b><small>{account.rating} ± 100 inicial</small></span><span><TimerReset size={17} /><b>Duração</b><small>10 minutos</small></span><span><ShieldCheck size={17} /><b>Modo</b><small>{mode === 'RANKED' ? 'Ranked público' : 'Unranked'}</small></span></div>
+      <div className="queue-rules"><span><Radio size={17} /><b>Região</b><small>São Paulo</small></span><span><UsersRound size={17} /><b>Rating</b><small>não é alterado</small></span><span><TimerReset size={17} /><b>Duração</b><small>10 minutos</small></span><span><ShieldCheck size={17} /><b>Validação</b><small>Wasm · exemplos públicos</small></span></div>
       {phase === 'error' ? <button className="button primary" type="button" onClick={() => window.location.reload()}>Tentar novamente</button> : <button className="button ghost" type="button" onClick={() => void cancel()}><ArrowLeft size={17} /> Cancelar busca</button>}
     </div>
   );
@@ -67,7 +67,7 @@ function queueErrorMessage(code: string | null): string {
     return 'Sua sessão ainda não reconheceu a confirmação do e-mail. Saia da conta, entre novamente e tente de novo.';
   }
   if (code === 'MATCHMAKING_DISABLED') return 'O matchmaking está temporariamente desativado.';
-  if (code === 'COMPETITIVE_EXECUTION_DISABLED') return 'Os modos X1 estão pausados até o judge competitivo estar pronto. O catálogo de prática continua disponível.';
+  if (code === 'COMPETITIVE_EXECUTION_DISABLED') return 'O X1 casual está pausado no servidor. O catálogo de prática continua disponível.';
   if (code === 'RANKED_DISABLED') return 'O ranked está pausado até o judge competitivo estar pronto. O modo unranked continua disponível.';
   return 'Não conseguimos acessar o matchmaking. Tente novamente em alguns instantes.';
 }

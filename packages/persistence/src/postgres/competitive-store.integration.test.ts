@@ -128,6 +128,58 @@ integration('CompetitiveStore with PostgreSQL', () => {
     expect(ratingHistory?.count).toBe(0);
   });
 
+  it('RN-MATCH-006 records browser-public validation only for unranked without judge jobs or rating', async () => {
+    const fixture = await createFixture(store, 'UNRANKED_PUBLIC');
+    const exampleId = randomUUID();
+    await database`
+      insert into devleague.test_case (
+        id, problem_version_id, kind, ordinal, input_text, expected_output_text
+      ) values (${exampleId}, ${fixture.problemVersionId}, 'PUBLIC', 1, '1\n', '1\n')
+    `;
+    const submissionId = randomUUID();
+    const result = await store.admitBrowserVerifiedSubmission({
+      id: submissionId,
+      matchId: fixture.matchId,
+      userId: fixture.firstUserId,
+      languageKey: 'python',
+      runtimeVersion: 'browser-3.x',
+      source: 'print(1)',
+      sourceSha256: sha256('print(1)'),
+      publicExampleIds: [exampleId],
+      requestHash: sha256('browser-request'),
+      idempotencyKey: 'browser-request-1'
+    });
+    const snapshot = await store.getSnapshot(fixture.matchId, fixture.firstUserId);
+    const [jobs] = await database<{ count: number }[]>`
+      select count(*)::integer as count from devleague.execution_job
+      where match_submission_id = ${submissionId}
+    `;
+
+    expect(result).toMatchObject({ status: 'FINISHED', verdict: 'ACCEPTED' });
+    expect(snapshot?.result).toMatchObject({
+      winnerUserId: fixture.firstUserId,
+      verification: 'BROWSER_PUBLIC_EXAMPLES',
+      ratingChanges: []
+    });
+    expect(jobs?.count).toBe(0);
+  });
+
+  it('RN-MATCH-006 rejects browser-public validation in ranked matches', async () => {
+    const fixture = await createFixture(store, 'RANKED_PUBLIC');
+    await expect(store.admitBrowserVerifiedSubmission({
+      id: randomUUID(),
+      matchId: fixture.matchId,
+      userId: fixture.firstUserId,
+      languageKey: 'python',
+      runtimeVersion: 'browser-3.x',
+      source: 'print(1)',
+      sourceSha256: sha256('print(1)'),
+      publicExampleIds: [randomUUID()],
+      requestHash: sha256('browser-ranked-request'),
+      idempotencyKey: 'browser-ranked-request-1'
+    })).rejects.toMatchObject({ code: 'BROWSER_VERIFICATION_NOT_ALLOWED' });
+  });
+
   it('RF-AUTH-001 bootstraps once per subject and enforces normalized username uniqueness', async () => {
     const created = await users.bootstrap({ authSubject: 'subject-1', username: 'Ana_Dev' });
     const retried = await users.bootstrap({ authSubject: 'subject-1', username: 'IgnoredName' });

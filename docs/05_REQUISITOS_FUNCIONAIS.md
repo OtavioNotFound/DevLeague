@@ -74,6 +74,7 @@ Prioridades: **MUST**, **SHOULD**, **COULD**. Critérios referenciam regras de [
 | RF-MATCH-005 | MUST | Permitir abandono explícito com confirmação e finalizar por forfeit. |
 | RF-MATCH-006 | MUST | Encerrar novas submissões no prazo e resolver as já admitidas. |
 | RF-MATCH-007 | MUST | Mostrar somente presença e contagem de submissões do adversário; nunca código/veredito detalhado durante a partida. |
+| RF-MATCH-008 | MUST | No modo alpha casual, aceitar aprovação Wasm apenas em `UNRANKED_PUBLIC`, conferir que todos os IDs de exemplos públicos atuais foram informados, rotular o resultado como não verificado e persistir delta zero. |
 
 ## Judge e submissão
 

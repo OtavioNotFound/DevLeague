@@ -32,7 +32,7 @@ Incrementos de domínio e persistência concluídos:
 - `apps/api`: liveness `GET /api/v1/health` e readiness PostgreSQL `GET /api/v1/health/ready`;
 - testes automatizados ligados aos IDs de regras/requisitos.
 
-Frontend, autenticação Supabase, API, PostgreSQL, Redis e os deploys iniciais de Web/API já existem. Continuam bloqueantes: provider real de judge, worker de produção, lobby/ready check, rate limit distribuído, fanout realtime multi-instância e calibração editorial/técnica dos problemas. Todo X1 permanece desabilitado por padrão (`COMPETITIVE_EXECUTION_ENABLED=false`); o ranked possui ainda uma segunda trava (`RANKED_MATCHMAKING_ENABLED=false`).
+Frontend, autenticação Supabase, API, PostgreSQL, Redis e os deploys iniciais de Web/API já existem. O X1 casual pode ser habilitado separadamente com `ALPHA_BROWSER_MATCHES_UNRANKED=true`: ele valida somente exemplos públicos via Wasm no navegador, marca o resultado como não verificado e nunca altera rating. Continuam bloqueantes para competição real: provider de judge, worker de produção, rate limit distribuído, fanout realtime multi-instância e calibração editorial/técnica dos problemas. O ranked permanece protegido por `COMPETITIVE_EXECUTION_ENABLED=false` e `RANKED_MATCHMAKING_ENABLED=false` até existir judge autoritativo.
 
 ### Desenvolvimento local
 

@@ -13,7 +13,7 @@ A entrega atual deixa a área de prática utilizável no navegador e impede que 
 - JavaScript e TypeScript executam localmente em Web Worker; Lua usa Fengari local.
 - C++/Clang Wasm permanece experimental e oculto por padrão com `NEXT_PUBLIC_EXPERIMENTAL_CPP=false`.
 - `Executar` no X1 testa exemplo público localmente; somente `Enviar solução` cria submissão competitiva.
-- Matchmaking, X1 e ranked exigem gates explícitos. Permanecem desligados sem judge competitivo real.
+- O matchmaking casual `UNRANKED_PUBLIC` pode usar o gate isolado `ALPHA_BROWSER_MATCHES_UNRANKED`; ranked continua desligado sem judge competitivo real.
 - O worker falso é proibido em produção e só aceita banco PostgreSQL local com opt-in explícito.
 - Banco remoto é bloqueado em desenvolvimento salvo opt-in, reduzindo risco de apagar ou alterar o Supabase por acidente.
 - Starters que continham soluções completas foram substituídos por esqueletos e os problemas atuais foram retirados do pool competitivo.
@@ -71,7 +71,7 @@ As migrations devem ser aplicadas pela API no Railway por `preDeployCommand`. Nu
 
 O produto publicável nesta etapa é o treino local no navegador com autenticação e catálogo. Python, JavaScript, TypeScript e Lua devem funcionar sem Railway worker. Isso reduz custo e é adequado para treino, porque o resultado local não altera rating.
 
-O X1 não deve ser habilitado apenas com Wasm do cliente. O cliente pode alterar código, memória, respostas e chamadas HTTP. Hash ou criptografia produzida no frontend também pode ser reproduzida por quem controla o navegador. Partida e rating exigem reexecução autoritativa em ambiente controlado pelo backend.
+O Wasm do cliente não é um judge confiável: o cliente pode alterar código, memória, respostas e chamadas HTTP. Por isso a exceção da alpha fica restrita a `UNRANKED_PUBLIC`, aparece como resultado não verificado e sempre produz delta zero. O servidor ainda confere participante, partida ativa, deadline, conjunto atual de exemplos públicos, idempotência e ordem transacional de admissão. Ranked continua exigindo reexecução autoritativa em ambiente controlado pelo backend.
 
 ## 6. Próxima sessão — ordem obrigatória
 

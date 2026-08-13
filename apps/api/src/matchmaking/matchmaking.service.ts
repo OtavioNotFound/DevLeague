@@ -23,7 +23,7 @@ export class MatchmakingService {
     if (process.env.MATCHMAKING_ENABLED !== 'true') {
       throw new ServiceUnavailableException({ code: 'MATCHMAKING_DISABLED' });
     }
-    if (!isCompetitiveExecutionEnabled()) {
+    if (!isMatchmakingExecutionEnabled(mode)) {
       throw new ServiceUnavailableException({ code: 'COMPETITIVE_EXECUTION_DISABLED' });
     }
     if (!isMatchmakingModeEnabled(mode)) {
@@ -84,4 +84,18 @@ export function isCompetitiveExecutionEnabled(
   environment: Readonly<Record<string, string | undefined>> = process.env
 ): boolean {
   return environment.COMPETITIVE_EXECUTION_ENABLED === 'true';
+}
+
+export function isCasualBrowserExecutionEnabled(
+  environment: Readonly<Record<string, string | undefined>> = process.env
+): boolean {
+  return environment.ALPHA_BROWSER_MATCHES_UNRANKED === 'true';
+}
+
+export function isMatchmakingExecutionEnabled(
+  mode: MatchmakingMode,
+  environment: Readonly<Record<string, string | undefined>> = process.env
+): boolean {
+  return isCompetitiveExecutionEnabled(environment) ||
+    (mode === 'UNRANKED' && isCasualBrowserExecutionEnabled(environment));
 }

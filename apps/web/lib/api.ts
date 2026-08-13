@@ -127,6 +127,27 @@ export class DevLeagueApi {
     });
   }
 
+  async submitBrowserMatch(input: {
+    matchId: string;
+    language: string;
+    source: string;
+    publicExampleIds: readonly string[];
+  }): Promise<SubmissionAcceptedResponse> {
+    if (publicConfig.demoMode) {
+      return { submissionId: crypto.randomUUID(), status: 'FINISHED', admissionSeq: 4, pollAfterMs: 0 };
+    }
+    const idempotencyKey = await submissionIdempotencyKey(input);
+    return this.request(`/matches/${input.matchId}/browser-submissions`, {
+      method: 'POST',
+      idempotencyKey,
+      body: {
+        language: input.language,
+        source: input.source,
+        publicExampleIds: input.publicExampleIds
+      }
+    });
+  }
+
   async readyMatch(matchId: string): Promise<MatchSnapshot> {
     if (publicConfig.demoMode) {
       return {
@@ -190,8 +211,15 @@ function parseJson(value: string): unknown {
   }
 }
 
-async function submissionIdempotencyKey(input: { matchId: string; language: string; source: string }): Promise<string> {
-  const payload = new TextEncoder().encode(`${input.matchId}\0${input.language}\0${input.source}`);
+async function submissionIdempotencyKey(input: {
+  matchId: string;
+  language: string;
+  source: string;
+  publicExampleIds?: readonly string[];
+}): Promise<string> {
+  const payload = new TextEncoder().encode(
+    `${input.matchId}\0${input.language}\0${input.source}\0${input.publicExampleIds?.join(',') ?? ''}`
+  );
   const digest = await crypto.subtle.digest('SHA-256', payload);
   return `match_${Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, '0')).join('')}`;
 }

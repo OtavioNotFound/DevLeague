@@ -38,7 +38,7 @@ function HomeContent() {
         eyebrow="CENTRAL DO COMPETIDOR"
         title={`Olá, ${account.username}.`}
         description="Aqueça com um problema ou entre direto na fila. Seu rating só muda em partidas públicas ranqueadas."
-        action={<div className="mode-actions"><Link className="button primary large" href="/play/queue?mode=ranked"><Swords size={19} /> Jogar ranked</Link><Link className="button secondary large" href="/play/queue?mode=unranked">Jogar unranked</Link></div>}
+        action={<div className="mode-actions"><Link className="button primary large" href="/play/queue"><Swords size={19} /> Jogar X1 casual</Link></div>}
       />
 
       <section className="home-stats" aria-label="Seu desempenho">

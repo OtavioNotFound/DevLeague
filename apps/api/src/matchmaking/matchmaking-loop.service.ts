@@ -17,7 +17,7 @@ export class MatchmakingLoopService implements OnModuleInit, OnModuleDestroy {
   onModuleInit(): void {
     if (process.env.MATCHMAKING_ENABLED !== 'true' ||
         process.env.MATCHMAKING_EMBEDDED !== 'true' ||
-        process.env.COMPETITIVE_EXECUTION_ENABLED !== 'true') return;
+        !hasEnabledExecutionMode()) return;
     this.running = true;
     this.loop = this.run();
   }
@@ -37,7 +37,8 @@ export class MatchmakingLoopService implements OnModuleInit, OnModuleDestroy {
     while (this.running) {
       try {
         let matchId: string | null = null;
-        const modes = process.env.RANKED_MATCHMAKING_ENABLED === 'true'
+        const modes = process.env.RANKED_MATCHMAKING_ENABLED === 'true' &&
+          process.env.COMPETITIVE_EXECUTION_ENABLED === 'true'
           ? (['RANKED', 'UNRANKED'] as const)
           : (['UNRANKED'] as const);
         for (const mode of modes) {
@@ -54,6 +55,13 @@ export class MatchmakingLoopService implements OnModuleInit, OnModuleDestroy {
       }
     }
   }
+}
+
+export function hasEnabledExecutionMode(
+  environment: Readonly<Record<string, string | undefined>> = process.env
+): boolean {
+  return environment.COMPETITIVE_EXECUTION_ENABLED === 'true' ||
+    environment.ALPHA_BROWSER_MATCHES_UNRANKED === 'true';
 }
 
 function positiveInteger(value: string | undefined, fallback: number): number {

@@ -20,13 +20,14 @@ const languages: readonly { key: LanguageKey; label: string; runtime: string }[]
 const storagePrefix = 'devleague:editor:';
 let monacoConfigured = false;
 
-export function CodeEditor({ problem, mode = 'practice', matchId, onMatchSubmitted, onLocalValidation, localCompetition = false, disabled = false }: {
+export function CodeEditor({ problem, mode = 'practice', matchId, onMatchSubmitted, onLocalValidation, localCompetition = false, browserCompetition = false, disabled = false }: {
   problem: ProblemDetail;
   mode?: 'practice' | 'match';
   matchId?: string;
   onMatchSubmitted?: () => Promise<void> | void;
   onLocalValidation?: (accepted: boolean) => Promise<void> | void;
   localCompetition?: boolean;
+  browserCompetition?: boolean;
   disabled?: boolean;
 }) {
   const [language, setLanguage] = useState<LanguageKey>(() =>
@@ -59,7 +60,7 @@ export function CodeEditor({ problem, mode = 'practice', matchId, onMatchSubmitt
         ? 'Carregando o Python/Wasm no navegador… O primeiro uso pode levar alguns segundos.'
         : kind === 'runs' ? 'Executando casos de exemplo…' : 'Enviando para avaliação…');
     try {
-      if (canRunInBrowser(language) && (kind === 'runs' || mode === 'practice' || localCompetition)) {
+      if (canRunInBrowser(language) && (kind === 'runs' || mode === 'practice' || localCompetition || browserCompetition)) {
         const examples = kind === 'runs' ? problem.examples.slice(0, 1) : problem.examples;
         if (examples.length === 0) throw new Error('este problema ainda não possui caso de exemplo');
         const results: string[] = [];
@@ -78,12 +79,22 @@ export function CodeEditor({ problem, mode = 'practice', matchId, onMatchSubmitt
         const allPassed = passed === examples.length;
         setState(allPassed ? 'accepted' : 'rejected');
         const localNotice = kind === 'submissions'
-          ? localCompetition
-            ? '\n\nX1 demonstrativo: resultado calculado localmente com os exemplos públicos e sem alteração de rating.'
+          ? localCompetition || browserCompetition
+            ? '\n\nX1 casual: validação não verificada feita no navegador com exemplos públicos; rating não é alterado.'
             : '\n\nValidação local: testa somente exemplos públicos, não é veredito do judge e não altera rating.'
           : '';
         setConsoleText(`${allPassed ? 'EXEMPLOS PASSARAM' : 'EXEMPLOS NÃO PASSARAM'} · ${passed}/${examples.length}\n\n${results.join('\n\n')}${localNotice}`);
         if (kind === 'submissions' && localCompetition) await onLocalValidation?.(allPassed);
+        if (kind === 'submissions' && browserCompetition && allPassed && matchId) {
+          await api.submitBrowserMatch({
+            matchId,
+            language,
+            source,
+            publicExampleIds: problem.examples.map((example) => example.id)
+          });
+          setConsoleText(`${allPassed ? 'EXEMPLOS PASSARAM' : 'EXEMPLOS NÃO PASSARAM'} · ${passed}/${examples.length}\n\n${results.join('\n\n')}\n\nResultado casual registrado pelo servidor como não verificado. Rating: ±0.`);
+          await onMatchSubmitted?.();
+        }
         return;
       }
       if (mode === 'match' && kind === 'submissions' && matchId) {

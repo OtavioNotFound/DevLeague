@@ -100,6 +100,64 @@ export class MatchesService {
     }
   }
 
+  async submitBrowserVerified(principal: AuthPrincipal, input: {
+    readonly matchId: string;
+    readonly language: 'python' | 'javascript' | 'typescript' | 'lua' | 'cpp';
+    readonly source: string;
+    readonly publicExampleIds: readonly string[];
+    readonly idempotencyKey: string;
+  }) {
+    if (process.env.ALPHA_BROWSER_MATCHES_UNRANKED !== 'true') {
+      throw new HttpException(
+        { code: 'BROWSER_MATCHES_DISABLED' },
+        HttpStatus.SERVICE_UNAVAILABLE
+      );
+    }
+    const me = await this.users.requireEligible(principal);
+    const submissionId = randomUUID();
+    const requestHash = sha256(JSON.stringify({
+      matchId: input.matchId,
+      language: input.language,
+      source: input.source,
+      publicExampleIds: input.publicExampleIds
+    }));
+    try {
+      return await this.store.admitBrowserVerifiedSubmission({
+        id: submissionId,
+        matchId: input.matchId,
+        userId: me.id,
+        languageKey: input.language,
+        runtimeVersion: `browser-${this.runtimes.versions[input.language]}`,
+        source: input.source,
+        sourceSha256: sha256(input.source),
+        publicExampleIds: input.publicExampleIds,
+        requestHash,
+        idempotencyKey: input.idempotencyKey
+      });
+    } catch (error: unknown) {
+      if (error instanceof StoreRuleError && error.code === 'IDEMPOTENCY_KEY_REUSED') {
+        throw new ConflictException({ code: error.code });
+      }
+      if (error instanceof StoreRuleError && (
+        error.code === 'MATCH_NOT_ACTIVE' ||
+        error.code === 'SUBMISSION_DEADLINE_PASSED' ||
+        error.code === 'BROWSER_VERIFICATION_NOT_ALLOWED' ||
+        error.code === 'PUBLIC_EXAMPLES_STALE'
+      )) {
+        throw new UnprocessableEntityException({ code: error.code });
+      }
+      if (error instanceof StoreRuleError && (
+        error.code === 'MATCH_NOT_FOUND' || error.code === 'NOT_A_PARTICIPANT'
+      )) {
+        throw new NotFoundException({ code: 'MATCH_NOT_FOUND' });
+      }
+      if (error instanceof StoreRuleError && error.code === 'SUBMISSION_RATE_LIMITED') {
+        throw new HttpException({ code: error.code, retryAfterSeconds: 60 }, HttpStatus.TOO_MANY_REQUESTS);
+      }
+      throw error;
+    }
+  }
+
   async forfeit(principal: AuthPrincipal, matchId: string): Promise<PersistedMatchResult> {
     const me = await this.users.requireEligible(principal);
     try {
