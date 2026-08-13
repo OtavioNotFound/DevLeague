@@ -12,7 +12,7 @@ export default function DemoPracticePage() {
       <header className="topbar demo-topbar">
         <Brand href="/" />
         <strong>Treino de demonstração</strong>
-        <Link className="button secondary" href="/login">Entrar</Link>
+        <div className="demo-header-actions"><Link className="button primary" href="/demo/x1">Testar X1</Link><Link className="button secondary" href="/login">Entrar</Link></div>
       </header>
       <main className="app-main wide">
         <div className="workspace-topline">

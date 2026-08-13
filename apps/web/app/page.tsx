@@ -5,7 +5,7 @@ import { Brand } from '../components/brand';
 export default function LandingPage() {
   return (
     <div className="landing">
-      <header className="landing-nav"><Brand /><nav><Link href="#como-funciona">Como funciona</Link><Link href="/demo">Treino demo</Link><Link className="button secondary" href="/login">Entrar</Link></nav></header>
+      <header className="landing-nav"><Brand /><nav><Link href="#como-funciona">Como funciona</Link><Link href="/demo">Treino demo</Link><Link href="/demo/x1">X1 demo</Link><Link className="button secondary" href="/login">Entrar</Link></nav></header>
       <main>
         <section className="hero">
           <div className="hero-copy">
