@@ -5,14 +5,14 @@ import { Brand } from '../components/brand';
 export default function LandingPage() {
   return (
     <div className="landing">
-      <header className="landing-nav"><Brand /><nav><Link href="#como-funciona">Como funciona</Link><Link href="/practice">Praticar</Link><Link className="button secondary" href="/login">Entrar</Link></nav></header>
+      <header className="landing-nav"><Brand /><nav><Link href="#como-funciona">Como funciona</Link><Link href="/demo">Treino demo</Link><Link className="button secondary" href="/login">Entrar</Link></nav></header>
       <main>
         <section className="hero">
           <div className="hero-copy">
             <p className="eyebrow">COMPITA. RESOLVA. EVOLUA.</p>
             <h1>PROGRAMAÇÃO<br />É MELHOR <span>NO X1.</span></h1>
             <p className="hero-lead">Um problema. Dois devs. Dez minutos. Vença com lógica, não com sorte.</p>
-            <div className="hero-actions"><Link className="button primary large" href="/signup">Começar agora <ArrowRight size={19} /></Link><Link className="button ghost large" href="/practice">Explorar problemas</Link></div>
+            <div className="hero-actions"><Link className="button primary large" href="/demo">Testar o treino <ArrowRight size={19} /></Link><Link className="button ghost large" href="/signup">Criar conta</Link></div>
             <div className="language-strip"><span>PYTHON</span><span>JAVASCRIPT</span><span>TYPESCRIPT</span><span>LUA</span><span>C++</span></div>
           </div>
           <div className="duel-visual" aria-label="Demonstração de uma partida em andamento">
