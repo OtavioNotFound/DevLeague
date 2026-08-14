@@ -3,6 +3,10 @@ import { MatchmakingCoordinator } from '@devleague/application';
 import { RankedMatchFactory } from '@devleague/persistence';
 import { DatabaseService } from '../database/database.service.js';
 import { RedisService } from '../redis/redis.service.js';
+import { MatchmakingWakeSignalService } from './matchmaking-wake-signal.service.js';
+
+const MINIMUM_RECOVERY_INTERVAL_MS = 30_000;
+const MAXIMUM_RETRY_INTERVAL_MS = 60_000;
 
 @Injectable()
 export class MatchmakingLoopService implements OnModuleInit, OnModuleDestroy {
@@ -11,7 +15,8 @@ export class MatchmakingLoopService implements OnModuleInit, OnModuleDestroy {
 
   constructor(
     private readonly database: DatabaseService,
-    private readonly redis: RedisService
+    private readonly redis: RedisService,
+    private readonly wakeSignal: MatchmakingWakeSignalService
   ) {}
 
   onModuleInit(): void {
@@ -24,6 +29,7 @@ export class MatchmakingLoopService implements OnModuleInit, OnModuleDestroy {
 
   async onModuleDestroy(): Promise<void> {
     this.running = false;
+    this.wakeSignal.wake();
     await this.loop;
   }
 
@@ -33,8 +39,10 @@ export class MatchmakingLoopService implements OnModuleInit, OnModuleDestroy {
       new RankedMatchFactory(this.database.connection)
     );
     const region = process.env.MATCHMAKING_REGION ?? 'br-sa-east';
-    const pollMs = positiveInteger(process.env.MATCHMAKER_POLL_MS, 500);
+    const recoveryIntervalMs = matchmakingRecoveryInterval(process.env);
+    let consecutiveFailures = 0;
     while (this.running) {
+      const wakeSnapshot = this.wakeSignal.snapshot();
       try {
         let matchId: string | null = null;
         const modes = process.env.RANKED_MATCHMAKING_ENABLED === 'true' &&
@@ -48,13 +56,35 @@ export class MatchmakingLoopService implements OnModuleInit, OnModuleDestroy {
             break;
           }
         }
-        if (!matchId) await delay(pollMs);
+        consecutiveFailures = 0;
+        if (!matchId) {
+          await this.wakeSignal.waitForChange(wakeSnapshot, recoveryIntervalMs);
+        }
       } catch (error: unknown) {
-        log('matchmaking.error', { errorType: error instanceof Error ? error.name : 'UnknownError' });
-        await delay(Math.max(pollMs, 2_000));
+        consecutiveFailures += 1;
+        const retryMs = matchmakingRetryDelay(consecutiveFailures);
+        log('matchmaking.error', {
+          errorType: error instanceof Error ? error.name : 'UnknownError',
+          retryMs
+        });
+        await delay(retryMs);
       }
     }
   }
+}
+
+export function matchmakingRecoveryInterval(
+  environment: Readonly<Record<string, string | undefined>> = process.env
+): number {
+  return Math.max(
+    positiveInteger(environment.MATCHMAKER_RECOVERY_MS ?? environment.MATCHMAKER_POLL_MS, 30_000),
+    MINIMUM_RECOVERY_INTERVAL_MS
+  );
+}
+
+export function matchmakingRetryDelay(consecutiveFailures: number): number {
+  const exponent = Math.max(0, Math.min(consecutiveFailures - 1, 5));
+  return Math.min(2_000 * (2 ** exponent), MAXIMUM_RETRY_INTERVAL_MS);
 }
 
 export function hasEnabledExecutionMode(

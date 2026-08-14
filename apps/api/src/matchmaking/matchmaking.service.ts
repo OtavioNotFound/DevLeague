@@ -8,6 +8,7 @@ import type { MatchmakingEntry, MatchmakingMode, MatchmakingQueuePort } from '@d
 import type { AuthPrincipal } from '../auth/auth-principal.js';
 import { RedisService } from '../redis/redis.service.js';
 import { UsersService } from '../users/users.service.js';
+import { MatchmakingWakeSignalService } from './matchmaking-wake-signal.service.js';
 
 @Injectable()
 export class MatchmakingService {
@@ -16,7 +17,8 @@ export class MatchmakingService {
 
   constructor(
     private readonly redis: RedisService,
-    private readonly users: UsersService
+    private readonly users: UsersService,
+    private readonly wakeSignal: MatchmakingWakeSignalService
   ) {}
 
   async upsert(principal: AuthPrincipal, mode: MatchmakingMode): Promise<MatchmakingEntry> {
@@ -36,37 +38,40 @@ export class MatchmakingService {
         matchId: me.activeMatchId
       });
     }
-    const queue = await this.queue();
     const now = Date.now();
-    return queue.upsert({
-      id: randomUUID(),
-      userId: me.id,
-      rating: me.rating,
-      region: this.region,
-      mode,
-      enteredAt: now,
-      expiresAt: now + this.ttlMs
-    });
+    const entry = await this.withQueue((queue) => queue.upsert(
+      {
+        id: randomUUID(),
+        userId: me.id,
+        rating: me.rating,
+        region: this.region,
+        mode,
+        enteredAt: now,
+        expiresAt: now + this.ttlMs
+      }
+    ));
+    this.wakeSignal.wake();
+    return entry;
   }
 
   async get(principal: AuthPrincipal): Promise<MatchmakingEntry | null> {
     const me = await this.users.requireEligible(principal);
-    return (await this.queue()).get(me.id);
+    return this.withQueue((queue) => queue.get(me.id));
   }
 
   async remove(principal: AuthPrincipal): Promise<void> {
     const me = await this.users.requireEligible(principal);
-    await (await this.queue()).remove(me.id);
+    await this.withQueue((queue) => queue.remove(me.id));
   }
 
   async heartbeat(principal: AuthPrincipal): Promise<MatchmakingEntry | null> {
     const me = await this.users.requireEligible(principal);
-    return (await this.queue()).heartbeat(me.id, Date.now() + this.ttlMs);
+    return this.withQueue((queue) => queue.heartbeat(me.id, Date.now() + this.ttlMs));
   }
 
-  private async queue(): Promise<MatchmakingQueuePort> {
+  private async withQueue<T>(operation: (queue: MatchmakingQueuePort) => Promise<T>): Promise<T> {
     try {
-      return await this.redis.matchmakingQueue();
+      return await operation(await this.redis.matchmakingQueue());
     } catch {
       throw new ServiceUnavailableException({ code: 'MATCHMAKING_UNAVAILABLE' });
     }

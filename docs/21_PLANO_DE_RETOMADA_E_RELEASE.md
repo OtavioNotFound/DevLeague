@@ -14,6 +14,7 @@ A entrega atual deixa a área de prática utilizável no navegador e impede que 
 - C++/Clang Wasm permanece experimental e oculto por padrão com `NEXT_PUBLIC_EXPERIMENTAL_CPP=false`.
 - `Executar` no X1 testa exemplo público localmente; somente `Enviar solução` cria submissão competitiva.
 - O matchmaking casual `UNRANKED_PUBLIC` pode usar o gate isolado `ALPHA_BROWSER_MATCHES_UNRANKED`; ranked continua desligado sem judge competitivo real.
+- O matchmaker embutido acorda quando uma entrada entra na fila e usa varredura de recuperação a cada 30 segundos ou mais; falhas de Redis recebem backoff exponencial e a API responde `503 MATCHMAKING_UNAVAILABLE`.
 - O worker falso é proibido em produção e só aceita banco PostgreSQL local com opt-in explícito.
 - Banco remoto é bloqueado em desenvolvimento salvo opt-in, reduzindo risco de apagar ou alterar o Supabase por acidente.
 - Starters que continham soluções completas foram substituídos por esqueletos e os problemas atuais foram retirados do pool competitivo.
